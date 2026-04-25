@@ -1,0 +1,17 @@
+export const T = {
+  bg: "#FAFAF9",
+  surface: "#FFFFFF",
+  surfaceAlt: "#F5F4F2",
+  border: "#E8E5E0",
+  borderLight: "#F0EEEA",
+  text: "#1C1917",
+  textSecondary: "#78716C",
+  textTertiary: "#A8A29E",
+  accent: "#D97706",
+  accentBg: "#FEF3C7",
+  accentText: "#92400E",
+  font: "'Noto Sans TC', 'Source Han Sans TC', system-ui, sans-serif",
+  mono: "'DM Mono', 'SF Mono', monospace",
+  radius: 8,
+  radiusSm: 5,
+};
