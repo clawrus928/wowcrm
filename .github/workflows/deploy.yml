@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master, main, claude/review-project-files-WPHwJ]
+    branches: [master, main]
   workflow_dispatch:
 
 permissions:
