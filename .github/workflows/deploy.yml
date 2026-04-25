@@ -1,0 +1,34 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [master, main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            # Clone or pull the repo
+            if [ ! -d "~/ClawTodo" ]; then
+              git clone https://github.com/clawrus928/ClawTodo ~/ClawTodo
+            else
+              cd ~/ClawTodo && git pull origin master
+            fi
+            
+            cd ~/ClawTodo
+            docker build -t clawtodo .
+            docker stop clawtodo || true
+            docker rm clawtodo || true
+            docker run -d --name clawtodo -p 80:80 --restart unless-stopped clawtodo
