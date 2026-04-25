@@ -1,25 +1,23 @@
-export function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
-}
+import { useEffect, useState } from "react";
+import { PRODUCTS, REPS } from "./constants.js";
 
-export function todayStr() {
-  return new Date().toISOString().split("T")[0];
-}
+export const fmt = (n) => `NT$ ${Number(n || 0).toLocaleString()}`;
+export const getProduct = (id) => PRODUCTS.find((p) => p.id === id);
+export const getRep = (id) => REPS.find((r) => r.id === id);
+export const getCustomer = (id, customers) => customers.find((c) => c.id === id);
+export const getDeal = (id, deals) => deals.find((d) => d.id === id);
 
-export function nowStr() {
-  return new Date().toISOString().replace("T", " ").slice(0, 19);
-}
+export const today = () => new Date().toISOString().slice(0, 10);
 
-export function daysUntil(d) {
-  if (!d) return null;
-  const a = new Date(d), b = new Date();
-  a.setHours(0, 0, 0, 0);
-  b.setHours(0, 0, 0, 0);
-  return Math.ceil((a - b) / 864e5);
-}
+export const newId = (prefix) =>
+  `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-export function fmtDate(d) {
-  if (!d) return "";
-  const x = new Date(d);
-  return (x.getMonth() + 1) + "/" + x.getDate();
+export function useIsMobile(bp = 800) {
+  const [m, setM] = useState(typeof window !== "undefined" && window.innerWidth < bp);
+  useEffect(() => {
+    const h = () => setM(window.innerWidth < bp);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, [bp]);
+  return m;
 }

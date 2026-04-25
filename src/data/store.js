@@ -1,0 +1,111 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  SEED_LEADS,
+  SEED_CUSTOMERS,
+  SEED_CONTACTS,
+  SEED_DEALS,
+  SEED_CONTRACTS,
+  SEED_QUOTES,
+} from "./seed.js";
+import { loadFromStorage, saveToStorage, clearStorage } from "./storage.js";
+import { newId, today } from "../utils.js";
+
+const DEFAULT_STATE = {
+  leads: SEED_LEADS,
+  customers: SEED_CUSTOMERS,
+  contacts: SEED_CONTACTS,
+  deals: SEED_DEALS,
+  contracts: SEED_CONTRACTS,
+  quotes: SEED_QUOTES,
+};
+
+const ENTITY_KEYS = ["leads", "customers", "contacts", "deals", "contracts", "quotes"];
+const ID_PREFIX = {
+  leads: "l",
+  customers: "c",
+  contacts: "ct",
+  deals: "d",
+  contracts: "k",
+  quotes: "q",
+};
+
+export function useCrmStore() {
+  const [state, setState] = useState(() => {
+    const persisted = typeof window !== "undefined" ? loadFromStorage() : null;
+    if (!persisted) return DEFAULT_STATE;
+    const merged = { ...DEFAULT_STATE };
+    for (const k of ENTITY_KEYS) {
+      if (Array.isArray(persisted[k])) merged[k] = persisted[k];
+    }
+    return merged;
+  });
+
+  useEffect(() => {
+    saveToStorage(state);
+  }, [state]);
+
+  const addItem = useCallback((entity, item) => {
+    const id = item.id || newId(ID_PREFIX[entity] || "x");
+    const created = item.created || today();
+    const record = { ...item, id, created };
+    setState((prev) => ({ ...prev, [entity]: [record, ...prev[entity]] }));
+    return record;
+  }, []);
+
+  const updateItem = useCallback((entity, id, patch) => {
+    setState((prev) => ({
+      ...prev,
+      [entity]: prev[entity].map((x) => (x.id === id ? { ...x, ...patch } : x)),
+    }));
+  }, []);
+
+  const removeItem = useCallback((entity, id) => {
+    setState((prev) => ({ ...prev, [entity]: prev[entity].filter((x) => x.id !== id) }));
+  }, []);
+
+  const moveDealStage = useCallback((dealId, stage) => {
+    setState((prev) => ({
+      ...prev,
+      deals: prev.deals.map((d) => (d.id === dealId ? { ...d, stage } : d)),
+    }));
+  }, []);
+
+  const convertLeadToCustomer = useCallback(
+    (leadId, customerInput) => {
+      const newCustomer = {
+        ...customerInput,
+        id: newId(ID_PREFIX.customers),
+        created: today(),
+      };
+      setState((prev) => ({
+        ...prev,
+        customers: [newCustomer, ...prev.customers],
+        leads: prev.leads.map((l) =>
+          l.id === leadId ? { ...l, status: "已轉客戶", convertedCustomerId: newCustomer.id } : l
+        ),
+      }));
+      return newCustomer;
+    },
+    []
+  );
+
+  const resetAll = useCallback(() => {
+    clearStorage();
+    setState(DEFAULT_STATE);
+  }, []);
+
+  const api = useMemo(
+    () => ({
+      ...state,
+      addItem,
+      updateItem,
+      removeItem,
+      moveDealStage,
+      convertLeadToCustomer,
+      resetAll,
+    }),
+    [state, addItem, updateItem, removeItem, moveDealStage, convertLeadToCustomer, resetAll]
+  );
+
+  return api;
+}
