@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PRODUCTS, REPS } from "./constants.js";
 
-export const fmt = (n) => `NT$ ${Number(n || 0).toLocaleString()}`;
+export const fmt = (n) => `MOP ${Number(n || 0).toLocaleString()}`;
 export const getProduct = (id) => PRODUCTS.find((p) => p.id === id);
 export const getRep = (id) => REPS.find((r) => r.id === id);
 export const getCustomer = (id, customers) => customers.find((c) => c.id === id);

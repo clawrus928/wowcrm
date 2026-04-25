@@ -275,7 +275,7 @@ function QuoteFormDrawer({ initial, mode, customers, deals, onClose, onSubmit })
           options={dealOptions.map((d) => ({ value: d.id, label: d.title }))}
         />
       </Field>
-      <Field label="金額（NT$）" required error={errors.amount}>
+      <Field label="金額（MOP）" required error={errors.amount}>
         <NumberInput value={form.amount} onChange={(v) => set("amount", v)} />
       </Field>
       <Field label="狀態">

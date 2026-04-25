@@ -306,7 +306,7 @@ function DealFormDrawer({ initial, mode, customers, onClose, onSubmit }) {
       <Field label="階段" error={errors.stage}>
         <SelectInput value={form.stage} onChange={(v) => set("stage", v)} options={stages} />
       </Field>
-      <Field label="金額（NT$）" required error={errors.amount}>
+      <Field label="金額（MOP）" required error={errors.amount}>
         <NumberInput value={form.amount} onChange={(v) => set("amount", v)} />
       </Field>
       <Field label="狀態">
