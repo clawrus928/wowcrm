@@ -1,16 +1,16 @@
 export const SEED_LEADS = [
   { id: "l1", name: "莊麗雲", company: "康健生活藥房", phone: "6633-3221", status: "未接觸", source: "官網", owner: "u1", collaborators: [], created: "2026-03-16" },
   { id: "l2", name: "李錦添", company: "李錦記廚房", phone: "6630-0993", status: "未接觸", source: "官網", owner: "u2", collaborators: ["u1"], created: "2026-03-16" },
-  { id: "l3", name: "吳秀芳", company: "唯一專業美容", phone: "6633-0055", status: "已約訪", source: "轉介紹", owner: "u1", collaborators: [], created: "2026-03-16" },
+  { id: "l3", name: "吳秀芳", company: "唯一專業美容", phone: "6633-0055", status: "已約訪", source: "渠道方", channelId: "ch1", owner: "u1", collaborators: [], created: "2026-03-16" },
   { id: "l4", name: "雷少芳", company: "烏佬茶寮美食", phone: "6303-3383", status: "已約訪", source: "展覽", owner: "u3", collaborators: [], created: "2026-02-11" },
-  { id: "l5", name: "劉美華", company: "RUBY BOUTIQUE", phone: "6688-8866", status: "已約訪", source: "社群媒體", owner: "u1", collaborators: ["u4"], created: "2026-02-11" },
+  { id: "l5", name: "劉美華", company: "RUBY BOUTIQUE", phone: "6688-8866", status: "已約訪", source: "渠道方", channelId: "ch3", owner: "u1", collaborators: ["u4"], created: "2026-02-11" },
   { id: "l6", name: "梁家駒", company: "比竹面", phone: "6666-5304", status: "無回應", source: "電話開發", owner: "u4", collaborators: [], created: "2026-02-11" },
-  { id: "l7", name: "張燦泳", company: "7星國際食品", phone: "6630-3339", status: "已約訪", source: "廣告", owner: "u2", collaborators: ["u3"], created: "2026-02-11" },
+  { id: "l7", name: "張燦泳", company: "7星國際食品", phone: "6630-3339", status: "已約訪", source: "渠道方", channelId: "ch2", owner: "u2", collaborators: ["u3"], created: "2026-02-11" },
   { id: "l8", name: "陳鎮濤", company: "源生藥房", phone: "6869-8484", status: "流失", source: "官網", owner: "u1", collaborators: [], created: "2026-02-10" },
 ];
 
 export const SEED_CUSTOMERS = [
-  { id: "c1", name: "鴻海精密", corpGroup: "鴻海集團", industry: "科技", address: "新北市土城區", owner: "u1", collaborators: ["u3"], status: "初訪", source: "轉介紹", created: "2026-02-15" },
+  { id: "c1", name: "鴻海精密", corpGroup: "鴻海集團", industry: "科技", address: "新北市土城區", owner: "u1", collaborators: ["u3"], status: "初訪", source: "渠道方", channelId: "ch1", created: "2026-02-15" },
   { id: "c2", name: "群創光電", corpGroup: "鴻海集團", industry: "科技", address: "苗栗縣竹南鎮", owner: "u3", collaborators: [], status: "跟進中", source: "展覽", created: "2026-03-01" },
   { id: "c3", name: "台積電", corpGroup: null, industry: "科技", address: "新竹市科學園區", owner: "u1", collaborators: ["u2"], status: "報價", source: "官網", created: "2026-01-20" },
   { id: "c4", name: "國泰金控", corpGroup: "國泰集團", industry: "金融", address: "台北市信義區", owner: "u2", collaborators: [], status: "初訪", source: "電話開發", created: "2026-03-20" },
@@ -48,6 +48,13 @@ export const SEED_CONTRACTS = [
   { id: "k3", title: "台積電 AI 策略諮詢合同", customerId: "c3", dealId: "d8", amount: 680000, status: "已完成", signDate: "2025-12-15", startDate: "2025-12-20", endDate: "2026-03-20", owner: "u1", collaborators: [], created: "2025-12-12" },
   { id: "k4", title: "統一超商 POS 安裝合同", customerId: "c5", dealId: "d5", amount: 1200000, status: "執行中", signDate: "2026-03-05", startDate: "2026-03-10", endDate: "2026-06-10", owner: "u3", collaborators: ["u1"], created: "2026-03-03" },
   { id: "k5", title: "國泰金控顧問合同", customerId: "c4", dealId: "d6", amount: 1500000, status: "草稿", signDate: null, startDate: null, endDate: null, owner: "u2", collaborators: [], created: "2026-03-25" },
+];
+
+export const SEED_CHANNELS = [
+  { id: "ch1", name: "明日商業顧問", type: "二級代理", contact: "陳明日", phone: "2828-1234", email: "ming@tomorrow.com", commissionRate: 10, status: "啟用", notes: "主要負責澳門中區商戶", owner: "u1", created: "2026-01-15" },
+  { id: "ch2", name: "南灣推廣", type: "外判銷售", contact: "李南灣", phone: "2851-7788", email: "li@nanwan.com", commissionRate: 8, status: "啟用", notes: "外判團隊 3 人", owner: "u2", created: "2026-02-01" },
+  { id: "ch3", name: "Joe Lam", type: "推薦人", contact: "Joe Lam", phone: "6688-9900", email: "joe@personal.com", commissionRate: 5, status: "啟用", notes: "個人推薦，按單計", owner: "u1", created: "2026-02-20" },
+  { id: "ch4", name: "氹仔商會", type: "二級代理", contact: "黃會長", phone: "2883-2233", email: "wong@taipa-biz.org", commissionRate: 12, status: "停用", notes: "暫停合作中", owner: "u3", created: "2025-11-10" },
 ];
 
 export const SEED_QUOTES = [

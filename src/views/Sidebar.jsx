@@ -12,6 +12,8 @@ export const NAV_ITEMS = [
   { id: "pipeline", label: "Pipeline", icon: "▦" },
   { id: "contracts", label: "合同", icon: "☰" },
   { id: "quotes", label: "報價單", icon: "☲" },
+  { section: "渠道網絡" },
+  { id: "channels", label: "渠道方", icon: "⊟" },
 ];
 
 export function Sidebar({ active, onChange, isMobile, open, onClose, onReset }) {

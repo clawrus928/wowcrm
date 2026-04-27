@@ -100,7 +100,7 @@ function isThisMonth(dateStr) {
 }
 
 export function DashboardView({ store }) {
-  const { leads, customers, deals, contracts, quotes } = store;
+  const { leads, customers, deals, contracts, quotes, channels } = store;
 
   const stats = useMemo(() => {
     const activeDeals = deals.filter((d) => d.status === "進行中");
@@ -134,9 +134,33 @@ export function DashboardView({ store }) {
     const totalPipeline = activeDeals.reduce((s, d) => s + d.amount, 0);
     const totalWon = wonDeals.reduce((s, d) => s + d.amount, 0);
 
+    const channelSummary = (channels || [])
+      .map((ch) => {
+        const chLeads = leads.filter((l) => l.channelId === ch.id);
+        const chCustIds = new Set(
+          customers.filter((c) => c.channelId === ch.id).map((c) => c.id)
+        );
+        for (const l of chLeads) {
+          if (l.convertedCustomerId) chCustIds.add(l.convertedCustomerId);
+        }
+        const chDeals = deals.filter((d) => chCustIds.has(d.customerId));
+        const won = chDeals
+          .filter((d) => d.status === "已成交")
+          .reduce((s, d) => s + d.amount, 0);
+        return {
+          ...ch,
+          leadCount: chLeads.length,
+          customerCount: chCustIds.size,
+          wonAmount: won,
+          commission: won * ((ch.commissionRate || 0) / 100),
+        };
+      })
+      .sort((a, b) => b.wonAmount - a.wonAmount || b.leadCount - a.leadCount);
+
     return {
       productSummary,
       ownerSummary,
+      channelSummary,
       activeDeals,
       wonDeals,
       newLeadsThisMonth,
@@ -145,7 +169,7 @@ export function DashboardView({ store }) {
       totalPipeline,
       totalWon,
     };
-  }, [leads, customers, deals]);
+  }, [leads, customers, deals, channels]);
 
   const maxOwnerAmount = Math.max(1, ...stats.ownerSummary.map((o) => o.amount));
 
@@ -243,6 +267,65 @@ export function DashboardView({ store }) {
               sub={`${o.count} 筆 · ${fmt(o.amount)}`}
             />
           ))}
+        </Card>
+
+        <Card title="渠道方表現">
+          {stats.channelSummary.length === 0 ? (
+            <div style={{ fontSize: 12, color: T.textTertiary }}>暫無渠道資料</div>
+          ) : (
+            <>
+              {stats.channelSummary.slice(0, 6).map((ch) => (
+                <div
+                  key={ch.id}
+                  style={{
+                    padding: "8px 0",
+                    borderBottom: `1px solid ${T.borderLight}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      marginBottom: 3,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                      {ch.name}
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: T.textTertiary,
+                          marginLeft: 6,
+                          fontWeight: 400,
+                        }}
+                      >
+                        {ch.type} · {ch.commissionRate}%
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: ch.wonAmount > 0 ? "#059669" : T.textTertiary,
+                        fontFamily: T.mono,
+                      }}
+                    >
+                      {ch.wonAmount > 0 ? fmt(ch.wonAmount) : "—"}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textTertiary }}>
+                    {ch.leadCount} 線索 · {ch.customerCount} 客戶
+                    {ch.commission > 0 && (
+                      <span style={{ marginLeft: 8, color: T.accent }}>
+                        佣金 {fmt(ch.commission)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </Card>
 
         <Card title="商機階段分佈">

@@ -32,13 +32,25 @@ const EMPTY_CUSTOMER = {
   collaborators: [],
 };
 
-export function CustomersView({ store, onOpenContact, onOpenDeal }) {
-  const { customers, contacts, deals, contracts, quotes } = store;
+export function CustomersView({
+  store,
+  drawerSeed,
+  onConsumeSeed,
+  onOpenContact,
+  onOpenDeal,
+  onOpenChannel,
+}) {
+  const { customers, contacts, deals, contracts, quotes, channels } = store;
   const [tab, setTab] = useState("all");
   const [fIndustry, setFIndustry] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
+
+  if (drawerSeed && !drawer) {
+    setDrawer(drawerSeed);
+    onConsumeSeed?.();
+  }
 
   const filtered = useMemo(() => {
     let d = customers;
@@ -135,12 +147,14 @@ export function CustomersView({ store, onOpenContact, onOpenDeal }) {
       {drawer?.mode === "detail" && current && (
         <CustomerDetailDrawer
           customer={current}
+          channels={channels}
           contacts={contacts.filter((c) => c.customerId === current.id)}
           deals={deals.filter((d) => d.customerId === current.id)}
           contracts={contracts.filter((k) => k.customerId === current.id)}
           quotes={quotes.filter((q) => q.customerId === current.id)}
           onOpenContact={onOpenContact}
           onOpenDeal={onOpenDeal}
+          onOpenChannel={onOpenChannel}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={() => {
@@ -174,16 +188,21 @@ export function CustomersView({ store, onOpenContact, onOpenDeal }) {
 
 function CustomerDetailDrawer({
   customer,
+  channels,
   contacts,
   deals,
   contracts,
   quotes,
   onOpenContact,
   onOpenDeal,
+  onOpenChannel,
   onClose,
   onEdit,
   onDelete,
 }) {
+  const channel = customer.channelId
+    ? channels?.find((c) => c.id === customer.channelId)
+    : null;
   return (
     <Drawer
       open
@@ -214,6 +233,19 @@ function CustomerDetailDrawer({
           <StatusBadge status={customer.status} />
         </DetailRow>
         <DetailRow label="客戶來源">{customer.source}</DetailRow>
+        {channel && (
+          <DetailRow label="渠道方">
+            <button
+              onClick={() => onOpenChannel?.(channel.id)}
+              style={{ ...s.link, background: "none", border: "none", padding: 0 }}
+            >
+              {channel.name}
+            </button>
+            <span style={{ marginLeft: 6, color: T.textTertiary, fontSize: 11 }}>
+              · {channel.type} · 佣金 {channel.commissionRate}%
+            </span>
+          </DetailRow>
+        )}
       </DetailSection>
 
       <DetailSection title="負責人">

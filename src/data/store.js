@@ -6,6 +6,7 @@ import {
   SEED_DEALS,
   SEED_CONTRACTS,
   SEED_QUOTES,
+  SEED_CHANNELS,
 } from "./seed.js";
 import { loadFromStorage, saveToStorage, clearStorage } from "./storage.js";
 import { newId, today } from "../utils.js";
@@ -17,9 +18,10 @@ const DEFAULT_STATE = {
   deals: SEED_DEALS,
   contracts: SEED_CONTRACTS,
   quotes: SEED_QUOTES,
+  channels: SEED_CHANNELS,
 };
 
-const ENTITY_KEYS = ["leads", "customers", "contacts", "deals", "contracts", "quotes"];
+const ENTITY_KEYS = ["leads", "customers", "contacts", "deals", "contracts", "quotes", "channels"];
 
 const LEAD_STATUS_MIGRATION = {
   "未處理": "未接觸",
@@ -40,6 +42,7 @@ const ID_PREFIX = {
   deals: "d",
   contracts: "k",
   quotes: "q",
+  channels: "ch",
 };
 
 export function useCrmStore() {
@@ -91,13 +94,19 @@ export function useCrmStore() {
         id: newId(ID_PREFIX.customers),
         created: today(),
       };
-      setState((prev) => ({
-        ...prev,
-        customers: [newCustomer, ...prev.customers],
-        leads: prev.leads.map((l) =>
-          l.id === leadId ? { ...l, status: "已轉客戶", convertedCustomerId: newCustomer.id } : l
-        ),
-      }));
+      setState((prev) => {
+        const lead = prev.leads.find((l) => l.id === leadId);
+        if (lead?.channelId && !newCustomer.channelId) {
+          newCustomer.channelId = lead.channelId;
+        }
+        return {
+          ...prev,
+          customers: [newCustomer, ...prev.customers],
+          leads: prev.leads.map((l) =>
+            l.id === leadId ? { ...l, status: "已轉客戶", convertedCustomerId: newCustomer.id } : l
+          ),
+        };
+      });
       return newCustomer;
     },
     []
