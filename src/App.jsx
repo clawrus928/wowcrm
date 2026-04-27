@@ -12,6 +12,7 @@ import { ContractsView } from "./views/Contracts.jsx";
 import { QuotesView } from "./views/Quotes.jsx";
 import { PipelineView } from "./views/Pipeline.jsx";
 import { DashboardView } from "./views/Dashboard.jsx";
+import { ChannelsView } from "./views/Channels.jsx";
 
 const VIEW_TITLES = {
   dashboard: "儀表板",
@@ -22,6 +23,7 @@ const VIEW_TITLES = {
   pipeline: "Pipeline",
   contracts: "合同",
   quotes: "報價單",
+  channels: "渠道方",
 };
 
 export default function App() {
@@ -32,6 +34,9 @@ export default function App() {
 
   const [contactSeed, setContactSeed] = useState(null);
   const [dealSeed, setDealSeed] = useState(null);
+  const [channelSeed, setChannelSeed] = useState(null);
+  const [leadSeed, setLeadSeed] = useState(null);
+  const [customerSeed, setCustomerSeed] = useState(null);
 
   const openContact = (id) => {
     setContactSeed({ mode: "detail", id });
@@ -40,6 +45,18 @@ export default function App() {
   const openDeal = (id) => {
     setDealSeed({ mode: "detail", id });
     setView("deals");
+  };
+  const openChannel = (id) => {
+    setChannelSeed({ mode: "detail", id });
+    setView("channels");
+  };
+  const openLead = (id) => {
+    setLeadSeed({ mode: "detail", id });
+    setView("leads");
+  };
+  const openCustomer = (id) => {
+    setCustomerSeed({ mode: "detail", id });
+    setView("customers");
   };
 
   return (
@@ -126,9 +143,23 @@ export default function App() {
           }}
         >
           {view === "dashboard" && <DashboardView store={store} />}
-          {view === "leads" && <LeadsView store={store} />}
+          {view === "leads" && (
+            <LeadsView
+              store={store}
+              drawerSeed={leadSeed}
+              onConsumeSeed={() => setLeadSeed(null)}
+              onOpenChannel={openChannel}
+            />
+          )}
           {view === "customers" && (
-            <CustomersView store={store} onOpenContact={openContact} onOpenDeal={openDeal} />
+            <CustomersView
+              store={store}
+              drawerSeed={customerSeed}
+              onConsumeSeed={() => setCustomerSeed(null)}
+              onOpenContact={openContact}
+              onOpenDeal={openDeal}
+              onOpenChannel={openChannel}
+            />
           )}
           {view === "contacts" && (
             <ContactsView
@@ -147,6 +178,15 @@ export default function App() {
           {view === "pipeline" && <PipelineView store={store} />}
           {view === "contracts" && <ContractsView store={store} />}
           {view === "quotes" && <QuotesView store={store} />}
+          {view === "channels" && (
+            <ChannelsView
+              store={store}
+              drawerSeed={channelSeed}
+              onConsumeSeed={() => setChannelSeed(null)}
+              onOpenLead={openLead}
+              onOpenCustomer={openCustomer}
+            />
+          )}
         </div>
       </div>
 

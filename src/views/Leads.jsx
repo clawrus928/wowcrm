@@ -25,13 +25,18 @@ const EMPTY_LEAD = {
   collaborators: [],
 };
 
-export function LeadsView({ store }) {
-  const { leads, customers } = store;
+export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
+  const { leads, customers, channels } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [fSource, setFSource] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null); // { mode: "detail"|"edit"|"create"|"convert", id?: }
+
+  if (drawerSeed && !drawer) {
+    setDrawer(drawerSeed);
+    onConsumeSeed?.();
+  }
 
   const filtered = useMemo(() => {
     let d = leads;
@@ -113,6 +118,8 @@ export function LeadsView({ store }) {
         <LeadDetailDrawer
           lead={current}
           customers={customers}
+          channels={channels}
+          onOpenChannel={onOpenChannel}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onConvert={() => setDrawer({ mode: "convert", id: current.id })}
@@ -129,6 +136,7 @@ export function LeadsView({ store }) {
         <LeadFormDrawer
           initial={drawer.mode === "edit" ? current : EMPTY_LEAD}
           mode={drawer.mode}
+          channels={channels}
           onClose={() => setDrawer(null)}
           onSubmit={(data) => {
             if (drawer.mode === "edit") {
@@ -157,9 +165,21 @@ export function LeadsView({ store }) {
   );
 }
 
-function LeadDetailDrawer({ lead, customers, onClose, onEdit, onConvert, onDelete }) {
+function LeadDetailDrawer({
+  lead,
+  customers,
+  channels,
+  onOpenChannel,
+  onClose,
+  onEdit,
+  onConvert,
+  onDelete,
+}) {
   const linkedCustomer = lead.convertedCustomerId
     ? customers.find((c) => c.id === lead.convertedCustomerId)
+    : null;
+  const channel = lead.channelId
+    ? channels?.find((c) => c.id === lead.channelId)
     : null;
   const canConvert = lead.status !== "已轉客戶" && !lead.convertedCustomerId;
   return (
@@ -194,6 +214,19 @@ function LeadDetailDrawer({ lead, customers, onClose, onEdit, onConvert, onDelet
           <StatusBadge status={lead.status} />
         </DetailRow>
         <DetailRow label="線索來源">{lead.source}</DetailRow>
+        {channel && (
+          <DetailRow label="渠道方">
+            <button
+              onClick={() => onOpenChannel?.(channel.id)}
+              style={{ ...s.link, background: "none", border: "none", padding: 0 }}
+            >
+              {channel.name}
+            </button>
+            <span style={{ marginLeft: 6, color: T.textTertiary, fontSize: 11 }}>
+              · {channel.type} · 佣金 {channel.commissionRate}%
+            </span>
+          </DetailRow>
+        )}
       </DetailSection>
 
       <DetailSection title="負責人">
@@ -217,7 +250,7 @@ function LeadDetailDrawer({ lead, customers, onClose, onEdit, onConvert, onDelet
   );
 }
 
-function LeadFormDrawer({ initial, mode, onClose, onSubmit }) {
+function LeadFormDrawer({ initial, mode, channels, onClose, onSubmit }) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState({});
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -227,9 +260,13 @@ function LeadFormDrawer({ initial, mode, onClose, onSubmit }) {
     if (!form.name?.trim()) e.name = "請輸入姓名";
     if (!form.company?.trim()) e.company = "請輸入商戶名稱";
     if (!form.phone?.trim()) e.phone = "請輸入手機";
+    if (form.source === "渠道方" && !form.channelId)
+      e.channelId = "請選擇渠道方";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
+
+  const activeChannels = (channels || []).filter((c) => c.status === "啟用");
 
   return (
     <Drawer
@@ -271,10 +308,29 @@ function LeadFormDrawer({ initial, mode, onClose, onSubmit }) {
       <Field label="線索來源">
         <SelectInput
           value={form.source}
-          onChange={(v) => set("source", v)}
+          onChange={(v) => {
+            setForm((f) => ({
+              ...f,
+              source: v,
+              channelId: v === "渠道方" ? f.channelId : null,
+            }));
+          }}
           options={LEAD_SOURCES}
         />
       </Field>
+      {form.source === "渠道方" && (
+        <Field label="渠道方" required error={errors.channelId}>
+          <SelectInput
+            value={form.channelId}
+            onChange={(v) => set("channelId", v)}
+            placeholder="請選擇"
+            options={activeChannels.map((c) => ({
+              value: c.id,
+              label: `${c.name}（${c.type}）`,
+            }))}
+          />
+        </Field>
+      )}
       <Field label="負責人">
         <SelectInput
           value={form.owner}
@@ -304,6 +360,7 @@ function ConvertLeadDrawer({ lead, onClose, onSubmit }) {
     address: "",
     status: "初訪",
     source: lead.source,
+    channelId: lead.channelId || null,
     owner: lead.owner,
     collaborators: lead.collaborators,
   });
