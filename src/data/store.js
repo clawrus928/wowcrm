@@ -8,7 +8,10 @@ import {
   SEED_QUOTES,
   SEED_CHANNELS,
 } from "./seed.js";
-import { loadFromStorage, saveToStorage, clearStorage } from "./storage.js";
+import { loadAuth, loadFromStorage, saveAuth, saveToStorage, clearStorage } from "./storage.js";
+import { REPS } from "../constants.js";
+
+export const DEMO_PASSWORD = "wowcrm";
 import { newId, today } from "../utils.js";
 
 const DEFAULT_STATE = {
@@ -56,6 +59,25 @@ export function useCrmStore() {
     merged.leads = merged.leads.map(migrateLead);
     return merged;
   });
+
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (typeof window === "undefined") return null;
+    const id = loadAuth();
+    return id && REPS.some((r) => r.id === id) ? id : null;
+  });
+
+  const login = useCallback((userId, password) => {
+    if (password !== DEMO_PASSWORD) return { ok: false, error: "密碼不正確" };
+    if (!REPS.some((r) => r.id === userId)) return { ok: false, error: "帳號不存在" };
+    setCurrentUser(userId);
+    saveAuth(userId);
+    return { ok: true };
+  }, []);
+
+  const logout = useCallback(() => {
+    setCurrentUser(null);
+    saveAuth(null);
+  }, []);
 
   useEffect(() => {
     saveToStorage(state);
@@ -120,6 +142,9 @@ export function useCrmStore() {
   const api = useMemo(
     () => ({
       ...state,
+      currentUser,
+      login,
+      logout,
       addItem,
       updateItem,
       removeItem,
@@ -127,7 +152,18 @@ export function useCrmStore() {
       convertLeadToCustomer,
       resetAll,
     }),
-    [state, addItem, updateItem, removeItem, moveDealStage, convertLeadToCustomer, resetAll]
+    [
+      state,
+      currentUser,
+      login,
+      logout,
+      addItem,
+      updateItem,
+      removeItem,
+      moveDealStage,
+      convertLeadToCustomer,
+      resetAll,
+    ]
   );
 
   return api;

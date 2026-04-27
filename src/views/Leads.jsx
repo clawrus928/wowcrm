@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CURRENT_USER, LEAD_SOURCES, LEAD_STATUSES, REPS } from "../constants.js";
+import { LEAD_SOURCES, LEAD_STATUSES, REPS } from "../constants.js";
 import { getRep, today } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
@@ -21,12 +21,12 @@ const EMPTY_LEAD = {
   phone: "",
   status: "未接觸",
   source: "官網",
-  owner: CURRENT_USER,
+  owner: null,
   collaborators: [],
 };
 
 export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
-  const { leads, customers, channels } = store;
+  const { leads, customers, channels, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [fSource, setFSource] = useState("all");
@@ -40,8 +40,8 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
 
   const filtered = useMemo(() => {
     let d = leads;
-    if (tab === "mine") d = d.filter((x) => x.owner === CURRENT_USER);
-    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(CURRENT_USER));
+    if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
+    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
     if (fStatus !== "all") d = d.filter((x) => x.status === fStatus);
     if (fSource !== "all") d = d.filter((x) => x.source === fSource);
     if (search) d = d.filter((x) => x.name.includes(search) || x.company.includes(search));
@@ -134,7 +134,7 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
 
       {(drawer?.mode === "create" || drawer?.mode === "edit") && (
         <LeadFormDrawer
-          initial={drawer.mode === "edit" ? current : EMPTY_LEAD}
+          initial={drawer.mode === "edit" ? current : { ...EMPTY_LEAD, owner: currentUser }}
           mode={drawer.mode}
           channels={channels}
           onClose={() => setDrawer(null)}

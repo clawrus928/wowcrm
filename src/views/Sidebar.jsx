@@ -1,4 +1,3 @@
-import { CURRENT_USER } from "../constants.js";
 import { getRep } from "../utils.js";
 import { T } from "../theme.js";
 
@@ -16,7 +15,7 @@ export const NAV_ITEMS = [
   { id: "channels", label: "渠道方", icon: "⊟" },
 ];
 
-export function Sidebar({ active, onChange, isMobile, open, onClose, onReset }) {
+export function Sidebar({ active, onChange, isMobile, open, onClose, onReset, currentUser, onLogout }) {
   if (isMobile && !open) return null;
 
   const sidebar = (
@@ -171,20 +170,23 @@ export function Sidebar({ active, onChange, isMobile, open, onClose, onReset }) 
             color: T.accentText,
           }}
         >
-          {getRep(CURRENT_USER)?.name[0]}
+          {getRep(currentUser)?.name[0]}
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
               fontSize: 12,
               fontWeight: 600,
               color: T.text,
               fontFamily: T.font,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            {getRep(CURRENT_USER)?.name}
+            {getRep(currentUser)?.name}
           </div>
-          <div style={{ fontSize: 10, color: T.textTertiary }}>業務主管</div>
+          <div style={{ fontSize: 10, color: T.textTertiary }}>業務人員</div>
         </div>
         <button
           title="重置資料"
@@ -201,6 +203,22 @@ export function Sidebar({ active, onChange, isMobile, open, onClose, onReset }) 
           }}
         >
           ↻
+        </button>
+        <button
+          title="登出"
+          onClick={() => {
+            if (confirm("確定登出？")) onLogout?.();
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            fontSize: 14,
+            color: T.textTertiary,
+            cursor: "pointer",
+            padding: 4,
+          }}
+        >
+          ⎋
         </button>
       </div>
     </div>

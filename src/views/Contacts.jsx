@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CURRENT_USER, REPS } from "../constants.js";
+import { REPS } from "../constants.js";
 import { getCustomer, getRep, today } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
@@ -20,12 +20,12 @@ const EMPTY_CONTACT = {
   role: "",
   phone: "",
   email: "",
-  owner: CURRENT_USER,
+  owner: null,
   collaborators: [],
 };
 
 export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
-  const { contacts, customers } = store;
+  const { contacts, customers, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
@@ -37,8 +37,8 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
 
   const filtered = useMemo(() => {
     let d = contacts;
-    if (tab === "mine") d = d.filter((x) => x.owner === CURRENT_USER);
-    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(CURRENT_USER));
+    if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
+    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
     if (search) {
       const q = search.toLowerCase();
       d = d.filter(
@@ -118,7 +118,7 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
 
       {(drawer?.mode === "create" || drawer?.mode === "edit") && (
         <ContactFormDrawer
-          initial={drawer.mode === "edit" ? current : EMPTY_CONTACT}
+          initial={drawer.mode === "edit" ? current : { ...EMPTY_CONTACT, owner: currentUser }}
           mode={drawer.mode}
           customers={customers}
           onClose={() => setDrawer(null)}

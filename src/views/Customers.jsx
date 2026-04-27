@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  CURRENT_USER,
   CUSTOMER_STATUSES,
   INDUSTRIES,
   LEAD_SOURCES,
@@ -28,7 +27,7 @@ const EMPTY_CUSTOMER = {
   address: "",
   status: "初訪",
   source: "官網",
-  owner: CURRENT_USER,
+  owner: null,
   collaborators: [],
 };
 
@@ -40,7 +39,7 @@ export function CustomersView({
   onOpenDeal,
   onOpenChannel,
 }) {
-  const { customers, contacts, deals, contracts, quotes, channels } = store;
+  const { customers, contacts, deals, contracts, quotes, channels, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fIndustry, setFIndustry] = useState("all");
   const [fStatus, setFStatus] = useState("all");
@@ -54,8 +53,8 @@ export function CustomersView({
 
   const filtered = useMemo(() => {
     let d = customers;
-    if (tab === "mine") d = d.filter((x) => x.owner === CURRENT_USER);
-    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(CURRENT_USER));
+    if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
+    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
     if (fIndustry !== "all") d = d.filter((x) => x.industry === fIndustry);
     if (fStatus !== "all") d = d.filter((x) => x.status === fStatus);
     if (search)
@@ -168,7 +167,7 @@ export function CustomersView({
 
       {(drawer?.mode === "create" || drawer?.mode === "edit") && (
         <CustomerFormDrawer
-          initial={drawer.mode === "edit" ? current : EMPTY_CUSTOMER}
+          initial={drawer.mode === "edit" ? current : { ...EMPTY_CUSTOMER, owner: currentUser }}
           mode={drawer.mode}
           onClose={() => setDrawer(null)}
           onSubmit={(data) => {

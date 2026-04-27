@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CONTRACT_STATUSES, CURRENT_USER, REPS } from "../constants.js";
+import { CONTRACT_STATUSES, REPS } from "../constants.js";
 import { fmt, getCustomer, getDeal, getRep, today } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
@@ -26,12 +26,12 @@ const EMPTY_CONTRACT = {
   signDate: null,
   startDate: null,
   endDate: null,
-  owner: CURRENT_USER,
+  owner: null,
   collaborators: [],
 };
 
 export function ContractsView({ store }) {
-  const { contracts, customers, deals } = store;
+  const { contracts, customers, deals, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -39,8 +39,8 @@ export function ContractsView({ store }) {
 
   const filtered = useMemo(() => {
     let d = contracts;
-    if (tab === "mine") d = d.filter((x) => x.owner === CURRENT_USER);
-    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(CURRENT_USER));
+    if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
+    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
     if (fStatus !== "all") d = d.filter((x) => x.status === fStatus);
     if (search)
       d = d.filter(
@@ -161,7 +161,7 @@ export function ContractsView({ store }) {
 
       {(drawer?.mode === "create" || drawer?.mode === "edit") && (
         <ContractFormDrawer
-          initial={drawer.mode === "edit" ? current : EMPTY_CONTRACT}
+          initial={drawer.mode === "edit" ? current : { ...EMPTY_CONTRACT, owner: currentUser }}
           mode={drawer.mode}
           customers={customers}
           deals={deals}
