@@ -32,16 +32,15 @@ export default function App() {
   const isMobile = useIsMobile();
   const [view, setView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  if (!store.currentUser) {
-    return <LoginView onLogin={store.login} />;
-  }
-
   const [contactSeed, setContactSeed] = useState(null);
   const [dealSeed, setDealSeed] = useState(null);
   const [channelSeed, setChannelSeed] = useState(null);
   const [leadSeed, setLeadSeed] = useState(null);
   const [customerSeed, setCustomerSeed] = useState(null);
+
+  if (!store.currentUser) {
+    return <LoginView onLogin={store.login} />;
+  }
 
   const openContact = (id) => {
     setContactSeed({ mode: "detail", id });
