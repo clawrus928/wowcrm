@@ -13,6 +13,7 @@ import { QuotesView } from "./views/Quotes.jsx";
 import { PipelineView } from "./views/Pipeline.jsx";
 import { DashboardView } from "./views/Dashboard.jsx";
 import { ChannelsView } from "./views/Channels.jsx";
+import { LoginView } from "./views/Login.jsx";
 
 const VIEW_TITLES = {
   dashboard: "儀表板",
@@ -31,12 +32,15 @@ export default function App() {
   const isMobile = useIsMobile();
   const [view, setView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
   const [contactSeed, setContactSeed] = useState(null);
   const [dealSeed, setDealSeed] = useState(null);
   const [channelSeed, setChannelSeed] = useState(null);
   const [leadSeed, setLeadSeed] = useState(null);
   const [customerSeed, setCustomerSeed] = useState(null);
+
+  if (!store.currentUser) {
+    return <LoginView onLogin={store.login} />;
+  }
 
   const openContact = (id) => {
     setContactSeed({ mode: "detail", id });
@@ -91,6 +95,8 @@ export default function App() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onReset={store.resetAll}
+        currentUser={store.currentUser}
+        onLogout={store.logout}
       />
 
       <div

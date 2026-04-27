@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  CURRENT_USER,
   DEAL_STATUSES,
   PRODUCTS,
   REPS,
@@ -28,12 +27,12 @@ const EMPTY_DEAL = {
   stage: PRODUCTS[0].stages[0],
   amount: 0,
   status: "進行中",
-  owner: CURRENT_USER,
+  owner: null,
   collaborators: [],
 };
 
 export function DealsView({ store, drawerSeed, onConsumeSeed }) {
-  const { deals, customers } = store;
+  const { deals, customers, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fProduct, setFProduct] = useState("all");
   const [fStatus, setFStatus] = useState("all");
@@ -47,8 +46,8 @@ export function DealsView({ store, drawerSeed, onConsumeSeed }) {
 
   const filtered = useMemo(() => {
     let d = deals;
-    if (tab === "mine") d = d.filter((x) => x.owner === CURRENT_USER);
-    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(CURRENT_USER));
+    if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
+    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
     if (fProduct !== "all") d = d.filter((x) => x.product === fProduct);
     if (fStatus !== "all") d = d.filter((x) => x.status === fStatus);
     if (search)
@@ -167,7 +166,7 @@ export function DealsView({ store, drawerSeed, onConsumeSeed }) {
 
       {(drawer?.mode === "create" || drawer?.mode === "edit") && (
         <DealFormDrawer
-          initial={drawer.mode === "edit" ? current : EMPTY_DEAL}
+          initial={drawer.mode === "edit" ? current : { ...EMPTY_DEAL, owner: currentUser }}
           mode={drawer.mode}
           customers={customers}
           onClose={() => setDrawer(null)}

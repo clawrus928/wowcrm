@@ -47,4 +47,3 @@ export const REPS = [
   { id: "u11", name: "李蔭良" },
 ];
 
-export const CURRENT_USER = "u1";

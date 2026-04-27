@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import {
   CHANNEL_STATUSES,
   CHANNEL_TYPES,
-  CURRENT_USER,
   REPS,
 } from "../constants.js";
 import { fmt, getRep, today } from "../utils.js";
@@ -30,7 +29,7 @@ const EMPTY_CHANNEL = {
   commissionRate: 10,
   status: "啟用",
   notes: "",
-  owner: CURRENT_USER,
+  owner: null,
 };
 
 function getChannelStats(channel, leads, customers, deals) {
@@ -64,17 +63,22 @@ function getChannelStats(channel, leads, customers, deals) {
   };
 }
 
-export function ChannelsView({ store, onOpenLead, onOpenCustomer }) {
-  const { channels, leads, customers, deals } = store;
+export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onOpenCustomer }) {
+  const { channels, leads, customers, deals, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [fType, setFType] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
 
+  if (drawerSeed && !drawer) {
+    setDrawer(drawerSeed);
+    onConsumeSeed?.();
+  }
+
   const filtered = useMemo(() => {
     let d = channels;
-    if (tab === "mine") d = d.filter((x) => x.owner === CURRENT_USER);
+    if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
     if (fStatus !== "all") d = d.filter((x) => x.status === fStatus);
     if (fType !== "all") d = d.filter((x) => x.type === fType);
     if (search)
@@ -219,7 +223,7 @@ export function ChannelsView({ store, onOpenLead, onOpenCustomer }) {
 
       {(drawer?.mode === "create" || drawer?.mode === "edit") && (
         <ChannelFormDrawer
-          initial={drawer.mode === "edit" ? current : EMPTY_CHANNEL}
+          initial={drawer.mode === "edit" ? current : { ...EMPTY_CHANNEL, owner: currentUser }}
           mode={drawer.mode}
           onClose={() => setDrawer(null)}
           onSubmit={(data) => {
