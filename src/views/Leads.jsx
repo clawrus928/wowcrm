@@ -19,7 +19,7 @@ const EMPTY_LEAD = {
   name: "",
   company: "",
   phone: "",
-  status: "未處理",
+  status: "未接觸",
   source: "官網",
   owner: CURRENT_USER,
   collaborators: [],
