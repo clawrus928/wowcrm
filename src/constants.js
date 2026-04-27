@@ -34,10 +34,17 @@ export const CONTRACT_STATUSES = ["草稿", "審批中", "已簽署", "執行中
 export const QUOTE_STATUSES = ["草稿", "已發送", "已接受", "已拒絕", "已過期"];
 
 export const REPS = [
-  { id: "u1", name: "林柏宏" },
-  { id: "u2", name: "陳怡君" },
-  { id: "u3", name: "張志豪" },
-  { id: "u4", name: "王雅婷" },
+  { id: "u1", name: "Alan Leong" },
+  { id: "u2", name: "Benson 文斌" },
+  { id: "u3", name: "陈伏娟" },
+  { id: "u4", name: "Cyrus" },
+  { id: "u5", name: "Eason" },
+  { id: "u6", name: "Tata" },
+  { id: "u7", name: "Maggie Chim" },
+  { id: "u8", name: "Kennedy" },
+  { id: "u9", name: "杨家欣" },
+  { id: "u10", name: "藍光" },
+  { id: "u11", name: "李蔭良" },
 ];
 
 export const CURRENT_USER = "u1";
