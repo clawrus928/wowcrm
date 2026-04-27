@@ -23,7 +23,7 @@ export const PRODUCTS = [
 ];
 
 export const INDUSTRIES = ["科技", "金融", "零售", "製造", "餐飲", "醫療", "教育", "貿易", "其他"];
-export const LEAD_STATUSES = ["未處理", "初訪", "跟進中", "報價", "已轉客戶", "無效"];
+export const LEAD_STATUSES = ["未接觸", "已約訪", "無回應", "流失", "已轉客戶"];
 export const LEAD_SOURCES = ["官網", "轉介紹", "電話開發", "展覽", "社群媒體", "廣告", "其他"];
 export const CUSTOMER_STATUSES = ["未處理", "初訪", "跟進中", "報價"];
 export const DEAL_STATUSES = ["進行中", "已成交", "已流失"];

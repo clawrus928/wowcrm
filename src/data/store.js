@@ -20,6 +20,19 @@ const DEFAULT_STATE = {
 };
 
 const ENTITY_KEYS = ["leads", "customers", "contacts", "deals", "contracts", "quotes"];
+
+const LEAD_STATUS_MIGRATION = {
+  "未處理": "未接觸",
+  "初訪": "已約訪",
+  "跟進中": "已約訪",
+  "報價": "已約訪",
+  "無效": "流失",
+};
+
+function migrateLead(lead) {
+  const next = LEAD_STATUS_MIGRATION[lead.status];
+  return next ? { ...lead, status: next } : lead;
+}
 const ID_PREFIX = {
   leads: "l",
   customers: "c",
@@ -37,6 +50,7 @@ export function useCrmStore() {
     for (const k of ENTITY_KEYS) {
       if (Array.isArray(persisted[k])) merged[k] = persisted[k];
     }
+    merged.leads = merged.leads.map(migrateLead);
     return merged;
   });
 

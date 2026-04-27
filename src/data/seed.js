@@ -1,12 +1,12 @@
 export const SEED_LEADS = [
-  { id: "l1", name: "莊麗雲", company: "康健生活藥房", phone: "6633-3221", status: "未處理", source: "官網", owner: "u1", collaborators: [], created: "2026-03-16" },
-  { id: "l2", name: "李錦添", company: "李錦記廚房", phone: "6630-0993", status: "未處理", source: "官網", owner: "u2", collaborators: ["u1"], created: "2026-03-16" },
-  { id: "l3", name: "吳秀芳", company: "唯一專業美容", phone: "6633-0055", status: "初訪", source: "轉介紹", owner: "u1", collaborators: [], created: "2026-03-16" },
-  { id: "l4", name: "雷少芳", company: "烏佬茶寮美食", phone: "6303-3383", status: "跟進中", source: "展覽", owner: "u3", collaborators: [], created: "2026-02-11" },
-  { id: "l5", name: "劉美華", company: "RUBY BOUTIQUE", phone: "6688-8866", status: "報價", source: "社群媒體", owner: "u1", collaborators: ["u4"], created: "2026-02-11" },
-  { id: "l6", name: "梁家駒", company: "比竹面", phone: "6666-5304", status: "未處理", source: "電話開發", owner: "u4", collaborators: [], created: "2026-02-11" },
-  { id: "l7", name: "張燦泳", company: "7星國際食品", phone: "6630-3339", status: "初訪", source: "廣告", owner: "u2", collaborators: ["u3"], created: "2026-02-11" },
-  { id: "l8", name: "陳鎮濤", company: "源生藥房", phone: "6869-8484", status: "跟進中", source: "官網", owner: "u1", collaborators: [], created: "2026-02-10" },
+  { id: "l1", name: "莊麗雲", company: "康健生活藥房", phone: "6633-3221", status: "未接觸", source: "官網", owner: "u1", collaborators: [], created: "2026-03-16" },
+  { id: "l2", name: "李錦添", company: "李錦記廚房", phone: "6630-0993", status: "未接觸", source: "官網", owner: "u2", collaborators: ["u1"], created: "2026-03-16" },
+  { id: "l3", name: "吳秀芳", company: "唯一專業美容", phone: "6633-0055", status: "已約訪", source: "轉介紹", owner: "u1", collaborators: [], created: "2026-03-16" },
+  { id: "l4", name: "雷少芳", company: "烏佬茶寮美食", phone: "6303-3383", status: "已約訪", source: "展覽", owner: "u3", collaborators: [], created: "2026-02-11" },
+  { id: "l5", name: "劉美華", company: "RUBY BOUTIQUE", phone: "6688-8866", status: "已約訪", source: "社群媒體", owner: "u1", collaborators: ["u4"], created: "2026-02-11" },
+  { id: "l6", name: "梁家駒", company: "比竹面", phone: "6666-5304", status: "無回應", source: "電話開發", owner: "u4", collaborators: [], created: "2026-02-11" },
+  { id: "l7", name: "張燦泳", company: "7星國際食品", phone: "6630-3339", status: "已約訪", source: "廣告", owner: "u2", collaborators: ["u3"], created: "2026-02-11" },
+  { id: "l8", name: "陳鎮濤", company: "源生藥房", phone: "6869-8484", status: "流失", source: "官網", owner: "u1", collaborators: [], created: "2026-02-10" },
 ];
 
 export const SEED_CUSTOMERS = [
