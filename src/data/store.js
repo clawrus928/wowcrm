@@ -7,6 +7,7 @@ import {
   SEED_CONTRACTS,
   SEED_QUOTES,
   SEED_CHANNELS,
+  SEED_SUPPLIERS,
 } from "./seed.js";
 import { loadAuth, loadFromStorage, saveAuth, saveToStorage, clearStorage } from "./storage.js";
 import { REPS } from "../constants.js";
@@ -22,9 +23,10 @@ const DEFAULT_STATE = {
   contracts: SEED_CONTRACTS,
   quotes: SEED_QUOTES,
   channels: SEED_CHANNELS,
+  suppliers: SEED_SUPPLIERS,
 };
 
-const ENTITY_KEYS = ["leads", "customers", "contacts", "deals", "contracts", "quotes", "channels"];
+const ENTITY_KEYS = ["leads", "customers", "contacts", "deals", "contracts", "quotes", "channels", "suppliers"];
 
 const LEAD_STATUS_MIGRATION = {
   "未處理": "未接觸",
@@ -46,6 +48,7 @@ const ID_PREFIX = {
   contracts: "k",
   quotes: "q",
   channels: "ch",
+  suppliers: "sp",
 };
 
 export function useCrmStore() {

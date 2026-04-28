@@ -100,7 +100,7 @@ function isThisMonth(dateStr) {
 }
 
 export function DashboardView({ store }) {
-  const { leads, customers, deals, contracts, quotes, channels } = store;
+  const { leads, customers, deals, contracts, quotes, channels, suppliers } = store;
 
   const stats = useMemo(() => {
     const activeDeals = deals.filter((d) => d.status === "進行中");
@@ -157,10 +157,26 @@ export function DashboardView({ store }) {
       })
       .sort((a, b) => b.wonAmount - a.wonAmount || b.leadCount - a.leadCount);
 
+    const supplierSummary = (suppliers || [])
+      .map((sp) => {
+        const spDeals = deals.filter((d) => d.supplierId === sp.id);
+        const active = spDeals.filter((d) => d.status === "進行中");
+        const won = spDeals.filter((d) => d.status === "已成交");
+        return {
+          ...sp,
+          dealCount: spDeals.length,
+          activeAmount: active.reduce((s, d) => s + d.amount, 0),
+          wonAmount: won.reduce((s, d) => s + d.amount, 0),
+        };
+      })
+      .filter((sp) => sp.dealCount > 0)
+      .sort((a, b) => b.activeAmount + b.wonAmount - (a.activeAmount + a.wonAmount));
+
     return {
       productSummary,
       ownerSummary,
       channelSummary,
+      supplierSummary,
       activeDeals,
       wonDeals,
       newLeadsThisMonth,
@@ -169,7 +185,7 @@ export function DashboardView({ store }) {
       totalPipeline,
       totalWon,
     };
-  }, [leads, customers, deals, channels]);
+  }, [leads, customers, deals, channels, suppliers]);
 
   const maxOwnerAmount = Math.max(1, ...stats.ownerSummary.map((o) => o.amount));
 
@@ -325,6 +341,63 @@ export function DashboardView({ store }) {
                 </div>
               ))}
             </>
+          )}
+        </Card>
+
+        <Card title="供應商表現">
+          {stats.supplierSummary.length === 0 ? (
+            <div style={{ fontSize: 12, color: T.textTertiary }}>暫無供應商資料</div>
+          ) : (
+            stats.supplierSummary.slice(0, 6).map((sp) => (
+              <div
+                key={sp.id}
+                style={{
+                  padding: "8px 0",
+                  borderBottom: `1px solid ${T.borderLight}`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    marginBottom: 3,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                    {sp.name}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: T.textTertiary,
+                        marginLeft: 6,
+                        fontWeight: 400,
+                      }}
+                    >
+                      {sp.type}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: sp.activeAmount > 0 ? "#2563EB" : T.textTertiary,
+                      fontFamily: T.mono,
+                    }}
+                  >
+                    {sp.activeAmount > 0 ? fmt(sp.activeAmount) : "—"}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: T.textTertiary }}>
+                  {sp.dealCount} 商機
+                  {sp.wonAmount > 0 && (
+                    <span style={{ marginLeft: 8, color: "#059669" }}>
+                      已成交 {fmt(sp.wonAmount)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))
           )}
         </Card>
 

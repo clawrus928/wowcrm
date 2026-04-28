@@ -3,8 +3,8 @@ import { PRODUCTS } from "../constants.js";
 import { fmt, getCustomer, getRep } from "../utils.js";
 import { T } from "../theme.js";
 
-export function PipelineView({ store }) {
-  const { deals, customers } = store;
+export function PipelineView({ store, onOpenSupplier }) {
+  const { deals, customers, suppliers } = store;
   const [activeProduct, setActiveProduct] = useState(PRODUCTS[0].id);
   const [dragId, setDragId] = useState(null);
 
@@ -134,12 +134,14 @@ export function PipelineView({ store }) {
               stage={stage}
               deals={stageDeals}
               customers={customers}
+              suppliers={suppliers}
               product={product}
               stageTotal={stageTotal}
               onDrop={() => handleDrop(stage)}
               onDragId={setDragId}
               allStages={stages}
               onMoveDeal={(id, s) => store.moveDealStage(id, s)}
+              onOpenSupplier={onOpenSupplier}
             />
           );
         })}
@@ -152,12 +154,14 @@ function PipelineColumn({
   stage,
   deals,
   customers,
+  suppliers,
   product,
   stageTotal,
   onDrop,
   onDragId,
   allStages,
   onMoveDeal,
+  onOpenSupplier,
 }) {
   const [over, setOver] = useState(false);
   return (
@@ -243,11 +247,13 @@ function PipelineColumn({
             key={d.id}
             deal={d}
             customers={customers}
+            suppliers={suppliers}
             product={product}
             onDragStart={() => onDragId(d.id)}
             allStages={allStages}
             currentStage={stage}
             onMoveDeal={onMoveDeal}
+            onOpenSupplier={onOpenSupplier}
           />
         ))}
         {deals.length === 0 && (
@@ -270,13 +276,18 @@ function PipelineColumn({
 function PipelineCard({
   deal,
   customers,
+  suppliers,
   product,
   onDragStart,
   allStages,
   currentStage,
   onMoveDeal,
+  onOpenSupplier,
 }) {
   const cust = getCustomer(deal.customerId, customers);
+  const supplier = deal.supplierId
+    ? suppliers?.find((sp) => sp.id === deal.supplierId)
+    : null;
   const stageIdx = allStages.indexOf(currentStage);
   const prev = stageIdx > 0 ? allStages[stageIdx - 1] : null;
   const next = stageIdx < allStages.length - 1 ? allStages[stageIdx + 1] : null;
@@ -332,6 +343,31 @@ function PipelineCard({
       >
         {fmt(deal.amount)}
       </div>
+      {supplier && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenSupplier?.(supplier.id);
+          }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 3,
+            padding: "2px 7px",
+            marginBottom: 6,
+            borderRadius: 4,
+            border: "1px solid #BAE6FD",
+            background: "#E0F2FE",
+            color: "#0369A1",
+            fontSize: 10,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: T.font,
+          }}
+        >
+          ⚒ {supplier.name}
+        </button>
+      )}
       <div style={{ display: "flex", gap: 4 }}>
         {prev && (
           <button
