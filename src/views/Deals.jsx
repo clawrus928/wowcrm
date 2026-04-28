@@ -27,12 +27,13 @@ const EMPTY_DEAL = {
   stage: PRODUCTS[0].stages[0],
   amount: 0,
   status: "進行中",
+  supplierId: null,
   owner: null,
   collaborators: [],
 };
 
-export function DealsView({ store, drawerSeed, onConsumeSeed }) {
-  const { deals, customers, currentUser } = store;
+export function DealsView({ store, drawerSeed, onConsumeSeed, onOpenSupplier }) {
+  const { deals, customers, suppliers, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fProduct, setFProduct] = useState("all");
   const [fStatus, setFStatus] = useState("all");
@@ -153,6 +154,8 @@ export function DealsView({ store, drawerSeed, onConsumeSeed }) {
         <DealDetailDrawer
           deal={current}
           customers={customers}
+          suppliers={suppliers}
+          onOpenSupplier={onOpenSupplier}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={() => {
@@ -169,6 +172,7 @@ export function DealsView({ store, drawerSeed, onConsumeSeed }) {
           initial={drawer.mode === "edit" ? current : { ...EMPTY_DEAL, owner: currentUser }}
           mode={drawer.mode}
           customers={customers}
+          suppliers={suppliers}
           onClose={() => setDrawer(null)}
           onSubmit={(data) => {
             if (drawer.mode === "edit") {
@@ -185,9 +189,20 @@ export function DealsView({ store, drawerSeed, onConsumeSeed }) {
   );
 }
 
-function DealDetailDrawer({ deal, customers, onClose, onEdit, onDelete }) {
+function DealDetailDrawer({
+  deal,
+  customers,
+  suppliers,
+  onOpenSupplier,
+  onClose,
+  onEdit,
+  onDelete,
+}) {
   const cust = getCustomer(deal.customerId, customers);
   const product = getProduct(deal.product);
+  const supplier = deal.supplierId
+    ? suppliers?.find((sp) => sp.id === deal.supplierId)
+    : null;
   return (
     <Drawer
       open
@@ -226,6 +241,19 @@ function DealDetailDrawer({ deal, customers, onClose, onEdit, onDelete }) {
         <DetailRow label="狀態">
           <StatusBadge status={deal.status} />
         </DetailRow>
+        {supplier && (
+          <DetailRow label="供應商">
+            <button
+              onClick={() => onOpenSupplier?.(supplier.id)}
+              style={{ ...s.link, background: "none", border: "none", padding: 0 }}
+            >
+              {supplier.name}
+            </button>
+            <span style={{ marginLeft: 6, color: T.textTertiary, fontSize: 11 }}>
+              · {supplier.type}
+            </span>
+          </DetailRow>
+        )}
       </DetailSection>
       <DetailSection title="負責人">
         <DetailRow label="負責人">{getRep(deal.owner)?.name}</DetailRow>
@@ -242,7 +270,7 @@ function DealDetailDrawer({ deal, customers, onClose, onEdit, onDelete }) {
   );
 }
 
-function DealFormDrawer({ initial, mode, customers, onClose, onSubmit }) {
+function DealFormDrawer({ initial, mode, customers, suppliers, onClose, onSubmit }) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState({});
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -313,6 +341,16 @@ function DealFormDrawer({ initial, mode, customers, onClose, onSubmit }) {
           value={form.status}
           onChange={(v) => set("status", v)}
           options={DEAL_STATUSES}
+        />
+      </Field>
+      <Field label="供應商">
+        <SelectInput
+          value={form.supplierId}
+          onChange={(v) => set("supplierId", v)}
+          placeholder="（可選）"
+          options={(suppliers || [])
+            .filter((sp) => sp.status === "啟用")
+            .map((sp) => ({ value: sp.id, label: `${sp.name}（${sp.type}）` }))}
         />
       </Field>
       <Field label="負責人">

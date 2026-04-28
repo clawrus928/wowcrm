@@ -16,6 +16,7 @@ export function MobileBottomNav({ active, onChange }) {
     { id: "contracts", label: "合同", icon: "☰" },
     { id: "quotes", label: "報價單", icon: "☲" },
     { id: "channels", label: "渠道方", icon: "⊟" },
+    { id: "suppliers", label: "供應商", icon: "⚒" },
   ];
   return (
     <>
@@ -98,7 +99,7 @@ export function MobileBottomNav({ active, onChange }) {
               color:
                 active === v.id ||
                 (v.id === "more" &&
-                  ["contacts", "deals", "contracts", "quotes", "channels"].includes(active))
+                  ["contacts", "deals", "contracts", "quotes", "channels", "suppliers"].includes(active))
                   ? T.accent
                   : T.textTertiary,
               padding: "4px 10px",

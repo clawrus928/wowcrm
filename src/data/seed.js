@@ -21,14 +21,14 @@ export const SEED_CUSTOMERS = [
 ];
 
 export const SEED_DEALS = [
-  { id: "d1", title: "智慧工廠顧問", customerId: "c1", product: "consulting", stage: "執行中", amount: 1800000, status: "進行中", owner: "u1", collaborators: ["u2"], created: "2026-03-01" },
-  { id: "d2", title: "產線設備升級", customerId: "c1", product: "hardware", stage: "出貨中", amount: 5200000, status: "進行中", owner: "u3", collaborators: [], created: "2026-02-15" },
-  { id: "d3", title: "製程最佳化顧問", customerId: "c3", product: "consulting", stage: "提案中", amount: 2400000, status: "進行中", owner: "u1", collaborators: [], created: "2026-03-10" },
-  { id: "d4", title: "僱主品牌行銷", customerId: "c3", product: "marketing", stage: "執行中", amount: 980000, status: "進行中", owner: "u4", collaborators: ["u1"], created: "2026-02-20" },
-  { id: "d5", title: "POS 系統更新", customerId: "c5", product: "hardware", stage: "安裝中", amount: 1200000, status: "進行中", owner: "u3", collaborators: ["u1"], created: "2026-02-28" },
-  { id: "d6", title: "數位轉型顧問", customerId: "c4", product: "consulting", stage: "需求分析", amount: 1500000, status: "進行中", owner: "u2", collaborators: [], created: "2026-03-20" },
-  { id: "d7", title: "全球品牌推廣", customerId: "c6", product: "marketing", stage: "需求確認", amount: 1100000, status: "進行中", owner: "u4", collaborators: ["u2"], created: "2026-03-22" },
-  { id: "d8", title: "AI 策略諮詢", customerId: "c3", product: "consulting", stage: "已完成", amount: 680000, status: "已成交", owner: "u1", collaborators: [], created: "2025-12-10" },
+  { id: "d1", title: "智慧工廠顧問", customerId: "c1", product: "consulting", stage: "執行中", amount: 1800000, status: "進行中", supplierId: "sp1", owner: "u1", collaborators: ["u2"], created: "2026-03-01" },
+  { id: "d2", title: "產線設備升級", customerId: "c1", product: "hardware", stage: "出貨中", amount: 5200000, status: "進行中", supplierId: "sp2", owner: "u3", collaborators: [], created: "2026-02-15" },
+  { id: "d3", title: "製程最佳化顧問", customerId: "c3", product: "consulting", stage: "提案中", amount: 2400000, status: "進行中", supplierId: "sp1", owner: "u1", collaborators: [], created: "2026-03-10" },
+  { id: "d4", title: "僱主品牌行銷", customerId: "c3", product: "marketing", stage: "執行中", amount: 980000, status: "進行中", supplierId: "sp3", owner: "u4", collaborators: ["u1"], created: "2026-02-20" },
+  { id: "d5", title: "POS 系統更新", customerId: "c5", product: "hardware", stage: "安裝中", amount: 1200000, status: "進行中", supplierId: "sp2", owner: "u3", collaborators: ["u1"], created: "2026-02-28" },
+  { id: "d6", title: "數位轉型顧問", customerId: "c4", product: "consulting", stage: "需求分析", amount: 1500000, status: "進行中", supplierId: null, owner: "u2", collaborators: [], created: "2026-03-20" },
+  { id: "d7", title: "全球品牌推廣", customerId: "c6", product: "marketing", stage: "需求確認", amount: 1100000, status: "進行中", supplierId: "sp3", owner: "u4", collaborators: ["u2"], created: "2026-03-22" },
+  { id: "d8", title: "AI 策略諮詢", customerId: "c3", product: "consulting", stage: "已完成", amount: 680000, status: "已成交", supplierId: "sp1", owner: "u1", collaborators: [], created: "2025-12-10" },
 ];
 
 export const SEED_CONTACTS = [
@@ -55,6 +55,14 @@ export const SEED_CHANNELS = [
   { id: "ch2", name: "南灣推廣", type: "外判銷售", contact: "李南灣", phone: "2851-7788", email: "li@nanwan.com", commissionRate: 8, status: "啟用", notes: "外判團隊 3 人", owner: "u2", created: "2026-02-01" },
   { id: "ch3", name: "Joe Lam", type: "推薦人", contact: "Joe Lam", phone: "6688-9900", email: "joe@personal.com", commissionRate: 5, status: "啟用", notes: "個人推薦，按單計", owner: "u1", created: "2026-02-20" },
   { id: "ch4", name: "氹仔商會", type: "二級代理", contact: "黃會長", phone: "2883-2233", email: "wong@taipa-biz.org", commissionRate: 12, status: "停用", notes: "暫停合作中", owner: "u3", created: "2025-11-10" },
+];
+
+export const SEED_SUPPLIERS = [
+  { id: "sp1", name: "華科技術", type: "顧問合作方", contact: "張工", phone: "2851-9001", email: "zhang@huake.com", paymentTerms: "30 天結款", status: "啟用", notes: "智慧工廠顧問首選", owner: "u1", created: "2026-01-10" },
+  { id: "sp2", name: "鼎盛電子", type: "硬體供應商", contact: "林經理", phone: "2851-9002", email: "lin@dingsheng.com", paymentTerms: "預付 50%, 出貨前付清", status: "啟用", notes: "主力 POS / 工業設備", owner: "u3", created: "2026-01-12" },
+  { id: "sp3", name: "創意星廣告", type: "行銷合作方", contact: "Maggie 周", phone: "2851-9003", email: "maggie@creativestar.com", paymentTerms: "月結", status: "啟用", notes: "品牌行銷外包", owner: "u4", created: "2026-02-05" },
+  { id: "sp4", name: "速捷物流", type: "物流商", contact: "李司機", phone: "2851-9004", email: "li@subjet.com", paymentTerms: "貨到付款", status: "啟用", notes: "澳門全區當天送達", owner: "u3", created: "2026-02-10" },
+  { id: "sp5", name: "全達安裝", type: "安裝商", contact: "黃師傅", phone: "2851-9005", email: "wong@chuenta.com", paymentTerms: "完工後 14 天", status: "停用", notes: "上次合作品質有問題", owner: "u3", created: "2025-12-08" },
 ];
 
 export const SEED_QUOTES = [

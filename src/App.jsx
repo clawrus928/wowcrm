@@ -13,6 +13,7 @@ import { QuotesView } from "./views/Quotes.jsx";
 import { PipelineView } from "./views/Pipeline.jsx";
 import { DashboardView } from "./views/Dashboard.jsx";
 import { ChannelsView } from "./views/Channels.jsx";
+import { SuppliersView } from "./views/Suppliers.jsx";
 import { LoginView } from "./views/Login.jsx";
 
 const VIEW_TITLES = {
@@ -25,6 +26,7 @@ const VIEW_TITLES = {
   contracts: "合同",
   quotes: "報價單",
   channels: "渠道方",
+  suppliers: "供應商",
 };
 
 export default function App() {
@@ -37,6 +39,7 @@ export default function App() {
   const [channelSeed, setChannelSeed] = useState(null);
   const [leadSeed, setLeadSeed] = useState(null);
   const [customerSeed, setCustomerSeed] = useState(null);
+  const [supplierSeed, setSupplierSeed] = useState(null);
 
   if (!store.currentUser) {
     return <LoginView onLogin={store.login} />;
@@ -61,6 +64,10 @@ export default function App() {
   const openCustomer = (id) => {
     setCustomerSeed({ mode: "detail", id });
     setView("customers");
+  };
+  const openSupplier = (id) => {
+    setSupplierSeed({ mode: "detail", id });
+    setView("suppliers");
   };
 
   return (
@@ -179,9 +186,12 @@ export default function App() {
               store={store}
               drawerSeed={dealSeed}
               onConsumeSeed={() => setDealSeed(null)}
+              onOpenSupplier={openSupplier}
             />
           )}
-          {view === "pipeline" && <PipelineView store={store} />}
+          {view === "pipeline" && (
+            <PipelineView store={store} onOpenSupplier={openSupplier} />
+          )}
           {view === "contracts" && <ContractsView store={store} />}
           {view === "quotes" && <QuotesView store={store} />}
           {view === "channels" && (
@@ -191,6 +201,14 @@ export default function App() {
               onConsumeSeed={() => setChannelSeed(null)}
               onOpenLead={openLead}
               onOpenCustomer={openCustomer}
+            />
+          )}
+          {view === "suppliers" && (
+            <SuppliersView
+              store={store}
+              drawerSeed={supplierSeed}
+              onConsumeSeed={() => setSupplierSeed(null)}
+              onOpenDeal={openDeal}
             />
           )}
         </div>
