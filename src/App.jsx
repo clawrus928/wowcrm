@@ -101,7 +101,6 @@ export default function App() {
         isMobile={isMobile}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        onReset={store.resetAll}
         currentUser={store.currentUser}
         onLogout={store.logout}
       />

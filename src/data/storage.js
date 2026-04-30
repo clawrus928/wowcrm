@@ -1,4 +1,4 @@
-const KEY = "wowcrm:v1";
+const KEY = "wowcrm:v2";
 const AUTH_KEY = "wowcrm:auth";
 
 export function loadFromStorage() {
