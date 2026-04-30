@@ -14,7 +14,6 @@ import { Drawer } from "../components/Drawer.jsx";
 import { DetailRow, DetailSection } from "../components/DetailRow.jsx";
 import {
   Field,
-  NumberInput,
   SelectInput,
   TextArea,
   TextInput,
@@ -26,13 +25,12 @@ const EMPTY_CHANNEL = {
   contact: "",
   phone: "",
   email: "",
-  commissionRate: 10,
   status: "啟用",
   notes: "",
   owner: null,
 };
 
-function getChannelStats(channel, leads, customers, deals) {
+function getChannelStats(channel, leads, customers, deals, contracts) {
   const channelLeads = leads.filter((l) => l.channelId === channel.id);
   const channelCustomerIds = new Set(
     customers.filter((c) => c.channelId === channel.id).map((c) => c.id)
@@ -49,7 +47,14 @@ function getChannelStats(channel, leads, customers, deals) {
   const activeAmount = channelDeals
     .filter((d) => d.status === "進行中")
     .reduce((sum, d) => sum + d.amount, 0);
-  const commission = wonAmount * ((channel.commissionRate || 0) / 100);
+
+  const channelContracts = (contracts || []).filter((k) =>
+    channelCustomerIds.has(k.customerId)
+  );
+  const commission = channelContracts.reduce(
+    (sum, k) => sum + (Number(k.internalCommissionAmount) || 0),
+    0
+  );
 
   return {
     leadCount: channelLeads.length,
@@ -64,7 +69,7 @@ function getChannelStats(channel, leads, customers, deals) {
 }
 
 export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onOpenCustomer }) {
-  const { channels, leads, customers, deals, currentUser } = store;
+  const { channels, leads, customers, deals, contracts, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [fType, setFType] = useState("all");
@@ -108,12 +113,6 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
     { key: "contact", label: "聯絡人" },
     { key: "phone", label: "電話", mono: true },
     {
-      key: "commissionRate",
-      label: "佣金",
-      mono: true,
-      render: (r) => `${r.commissionRate}%`,
-    },
-    {
       key: "leads",
       label: "帶入線索",
       mono: true,
@@ -125,7 +124,7 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
       label: "成交金額",
       mono: true,
       render: (r) => {
-        const stats = getChannelStats(r, leads, customers, deals);
+        const stats = getChannelStats(r, leads, customers, deals, contracts);
         return stats.wonAmount > 0 ? (
           <span style={{ fontWeight: 600, color: "#059669" }}>
             {fmt(stats.wonAmount)}
@@ -208,6 +207,7 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
           leads={leads}
           customers={customers}
           deals={deals}
+          contracts={contracts}
           onOpenLead={onOpenLead}
           onOpenCustomer={onOpenCustomer}
           onClose={() => setDrawer(null)}
@@ -275,13 +275,14 @@ function ChannelDetailDrawer({
   leads,
   customers,
   deals,
+  contracts,
   onOpenLead,
   onOpenCustomer,
   onClose,
   onEdit,
   onDelete,
 }) {
-  const stats = getChannelStats(channel, leads, customers, deals);
+  const stats = getChannelStats(channel, leads, customers, deals, contracts);
   const conversionRate =
     stats.leadCount > 0
       ? Math.round((stats.customerCount / stats.leadCount) * 100)
@@ -329,7 +330,7 @@ function ChannelDetailDrawer({
           justifyContent: "space-between",
         }}
       >
-        <span>佣金（{channel.commissionRate}%）</span>
+        <span>內部佣金（依合同）</span>
         <span style={{ fontFamily: T.mono, fontWeight: 700 }}>
           {fmt(stats.commission)}
         </span>
@@ -346,9 +347,6 @@ function ChannelDetailDrawer({
           ) : (
             <span style={s.badge("#6B7280", "#F3F4F6")}>停用</span>
           )}
-        </DetailRow>
-        <DetailRow label="佣金 %">
-          <span style={{ fontFamily: T.mono }}>{channel.commissionRate}%</span>
         </DetailRow>
       </DetailSection>
 
@@ -459,8 +457,6 @@ function ChannelFormDrawer({ initial, mode, onClose, onSubmit }) {
     const e = {};
     if (!form.name?.trim()) e.name = "請輸入渠道名稱";
     if (form.email && !/.+@.+\..+/.test(form.email)) e.email = "Email 格式不正確";
-    if (form.commissionRate == null || form.commissionRate < 0 || form.commissionRate > 100)
-      e.commissionRate = "佣金需在 0–100 之間";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -504,12 +500,6 @@ function ChannelFormDrawer({ initial, mode, onClose, onSubmit }) {
       </Field>
       <Field label="Email" error={errors.email}>
         <TextInput type="email" value={form.email} onChange={(v) => set("email", v)} />
-      </Field>
-      <Field label="佣金 %" required error={errors.commissionRate}>
-        <NumberInput
-          value={form.commissionRate}
-          onChange={(v) => set("commissionRate", v)}
-        />
       </Field>
       <Field label="狀態">
         <SelectInput

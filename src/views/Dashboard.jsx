@@ -147,12 +147,19 @@ export function DashboardView({ store }) {
         const won = chDeals
           .filter((d) => d.status === "已成交")
           .reduce((s, d) => s + d.amount, 0);
+        const chContracts = (contracts || []).filter((k) =>
+          chCustIds.has(k.customerId)
+        );
+        const commission = chContracts.reduce(
+          (s, k) => s + (Number(k.internalCommissionAmount) || 0),
+          0
+        );
         return {
           ...ch,
           leadCount: chLeads.length,
           customerCount: chCustIds.size,
           wonAmount: won,
-          commission: won * ((ch.commissionRate || 0) / 100),
+          commission,
         };
       })
       .sort((a, b) => b.wonAmount - a.wonAmount || b.leadCount - a.leadCount);
@@ -316,7 +323,7 @@ export function DashboardView({ store }) {
                           fontWeight: 400,
                         }}
                       >
-                        {ch.type} · {ch.commissionRate}%
+                        {ch.type}
                       </span>
                     </div>
                     <div
@@ -334,7 +341,7 @@ export function DashboardView({ store }) {
                     {ch.leadCount} 線索 · {ch.customerCount} 客戶
                     {ch.commission > 0 && (
                       <span style={{ marginLeft: 8, color: T.accent }}>
-                        佣金 {fmt(ch.commission)}
+                        內部佣金 {fmt(ch.commission)}
                       </span>
                     )}
                   </div>

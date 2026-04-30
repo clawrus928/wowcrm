@@ -14,6 +14,7 @@ import {
   MultiSelect,
   NumberInput,
   SelectInput,
+  TextArea,
   TextInput,
 } from "../components/fields.jsx";
 
@@ -26,6 +27,8 @@ const EMPTY_CONTRACT = {
   signDate: null,
   startDate: null,
   endDate: null,
+  internalCommissionAmount: 0,
+  internalNotes: "",
   owner: null,
   collaborators: [],
 };
@@ -234,6 +237,38 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
           <span style={{ fontFamily: T.mono }}>{contract.created}</span>
         </DetailRow>
       </DetailSection>
+      <div
+        style={{
+          marginTop: 18,
+          padding: "10px 12px",
+          background: "#FEF3C7",
+          border: "1px solid #FCD34D",
+          borderRadius: T.radiusSm,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "#92400E",
+            letterSpacing: 1.5,
+            textTransform: "uppercase",
+            marginBottom: 6,
+          }}
+        >
+          🔒 內部資訊（僅內部可見）
+        </div>
+        <DetailRow label="內部佣金">
+          <span style={{ fontFamily: T.mono, fontWeight: 700, color: "#92400E" }}>
+            {fmt(contract.internalCommissionAmount || 0)}
+          </span>
+        </DetailRow>
+        {contract.internalNotes && (
+          <DetailRow label="內部備註">
+            <span style={{ whiteSpace: "pre-wrap" }}>{contract.internalNotes}</span>
+          </DetailRow>
+        )}
+      </div>
     </Drawer>
   );
 }
@@ -334,6 +369,41 @@ function ContractFormDrawer({ initial, mode, customers, deals, onClose, onSubmit
           }))}
         />
       </Field>
+      <div
+        style={{
+          marginTop: 18,
+          padding: "12px 14px",
+          background: "#FEF3C7",
+          border: "1px solid #FCD34D",
+          borderRadius: T.radiusSm,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "#92400E",
+            letterSpacing: 1.5,
+            textTransform: "uppercase",
+            marginBottom: 10,
+          }}
+        >
+          🔒 內部資訊（僅內部可見，不會列印給客戶）
+        </div>
+        <Field label="內部佣金（MOP）" hint="付給渠道方 / 推薦人的金額，依此項目實際協商">
+          <NumberInput
+            value={form.internalCommissionAmount}
+            onChange={(v) => set("internalCommissionAmount", v)}
+          />
+        </Field>
+        <Field label="內部備註">
+          <TextArea
+            value={form.internalNotes}
+            onChange={(v) => set("internalNotes", v)}
+            rows={2}
+          />
+        </Field>
+      </div>
     </Drawer>
   );
 }

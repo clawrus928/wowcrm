@@ -16,7 +16,7 @@ export const NAV_ITEMS = [
   { id: "suppliers", label: "供應商", icon: "⚒" },
 ];
 
-export function Sidebar({ active, onChange, isMobile, open, onClose, onReset, currentUser, onLogout }) {
+export function Sidebar({ active, onChange, isMobile, open, onClose, currentUser, onLogout }) {
   if (isMobile && !open) return null;
 
   const sidebar = (
@@ -189,22 +189,6 @@ export function Sidebar({ active, onChange, isMobile, open, onClose, onReset, cu
           </div>
           <div style={{ fontSize: 10, color: T.textTertiary }}>業務人員</div>
         </div>
-        <button
-          title="重置資料"
-          onClick={() => {
-            if (confirm("確定重置全部資料為初始狀態？")) onReset?.();
-          }}
-          style={{
-            background: "none",
-            border: "none",
-            fontSize: 14,
-            color: T.textTertiary,
-            cursor: "pointer",
-            padding: 4,
-          }}
-        >
-          ↻
-        </button>
         <button
           title="登出"
           onClick={() => {
