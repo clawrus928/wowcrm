@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { QUOTE_STATUSES, REPS } from "../constants.js";
-import { fmt, getCustomer, getDeal, getRep, today } from "../utils.js";
+import { fmt, getCustomer, getDeal, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -137,10 +137,13 @@ export function QuotesView({ store }) {
           deals={deals}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
-          onDelete={() => {
-            if (confirm(`確定刪除報價單「${current.title}」？`)) {
-              store.removeItem("quotes", current.id);
+          onDelete={async () => {
+            if (!confirm(`確定刪除報價單「${current.title}」？`)) return;
+            try {
+              await store.removeItem("quotes", current.id);
               setDrawer(null);
+            } catch (err) {
+              alert(err.message || "刪除失敗");
             }
           }}
         />
@@ -153,13 +156,17 @@ export function QuotesView({ store }) {
           customers={customers}
           deals={deals}
           onClose={() => setDrawer(null)}
-          onSubmit={(data) => {
-            if (drawer.mode === "edit") {
-              store.updateItem("quotes", current.id, data);
-              setDrawer({ mode: "detail", id: current.id });
-            } else {
-              const created = store.addItem("quotes", { ...data, created: today() });
-              setDrawer({ mode: "detail", id: created.id });
+          onSubmit={async (data) => {
+            try {
+              if (drawer.mode === "edit") {
+                await store.updateItem("quotes", current.id, data);
+                setDrawer({ mode: "detail", id: current.id });
+              } else {
+                const created = await store.addItem("quotes", data);
+                setDrawer({ mode: "detail", id: created.id });
+              }
+            } catch (err) {
+              alert(err.message || "儲存失敗");
             }
           }}
         />

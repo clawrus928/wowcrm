@@ -1,9 +1,11 @@
 node_modules
 **/node_modules
 dist
-.vite
-.DS_Store
+**/dist
+.git
+.github
 *.log
-.env
-.env.local
-data/
+.vite
+crm-spec.md
+README*.md
+.DS_Store

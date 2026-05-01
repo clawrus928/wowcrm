@@ -10,17 +10,20 @@ export function LoginView({ onLogin }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e?.preventDefault();
     setError("");
     setLoading(true);
-    setTimeout(() => {
-      const result = onLogin(userId, password);
+    try {
+      const result = await onLogin(userId, password);
       if (!result.ok) {
         setError(result.error || "登入失敗");
-        setLoading(false);
       }
-    }, 250);
+    } catch (err) {
+      setError(err.message || "登入失敗");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fillDemo = () => setPassword(DEMO_PASSWORD);

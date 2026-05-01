@@ -1,173 +1,168 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  SEED_LEADS,
-  SEED_CUSTOMERS,
-  SEED_CONTACTS,
-  SEED_DEALS,
-  SEED_CONTRACTS,
-  SEED_QUOTES,
-  SEED_CHANNELS,
-  SEED_SUPPLIERS,
-} from "./seed.js";
-import { loadAuth, loadFromStorage, saveAuth, saveToStorage, clearStorage } from "./storage.js";
-import { REPS } from "../constants.js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api, getStoredUser, getToken } from "./api.js";
+
+const ENTITY_KEYS = [
+  "leads",
+  "customers",
+  "contacts",
+  "deals",
+  "contracts",
+  "quotes",
+  "channels",
+  "suppliers",
+];
+
+const EMPTY_STATE = {
+  leads: [],
+  customers: [],
+  contacts: [],
+  deals: [],
+  contracts: [],
+  quotes: [],
+  channels: [],
+  suppliers: [],
+};
 
 export const DEMO_PASSWORD = "wowcrm";
-import { newId, today } from "../utils.js";
-
-const DEFAULT_STATE = {
-  leads: SEED_LEADS,
-  customers: SEED_CUSTOMERS,
-  contacts: SEED_CONTACTS,
-  deals: SEED_DEALS,
-  contracts: SEED_CONTRACTS,
-  quotes: SEED_QUOTES,
-  channels: SEED_CHANNELS,
-  suppliers: SEED_SUPPLIERS,
-};
-
-const ENTITY_KEYS = ["leads", "customers", "contacts", "deals", "contracts", "quotes", "channels", "suppliers"];
-
-const LEAD_STATUS_MIGRATION = {
-  "未處理": "未接觸",
-  "初訪": "已約訪",
-  "跟進中": "已約訪",
-  "報價": "已約訪",
-  "無效": "流失",
-};
-
-function migrateLead(lead) {
-  const next = LEAD_STATUS_MIGRATION[lead.status];
-  return next ? { ...lead, status: next } : lead;
-}
-const ID_PREFIX = {
-  leads: "l",
-  customers: "c",
-  contacts: "ct",
-  deals: "d",
-  contracts: "k",
-  quotes: "q",
-  channels: "ch",
-  suppliers: "sp",
-};
 
 export function useCrmStore() {
-  const [state, setState] = useState(() => {
-    const persisted = typeof window !== "undefined" ? loadFromStorage() : null;
-    if (!persisted) return DEFAULT_STATE;
-    const merged = { ...DEFAULT_STATE };
-    for (const k of ENTITY_KEYS) {
-      if (Array.isArray(persisted[k])) merged[k] = persisted[k];
-    }
-    merged.leads = merged.leads.map(migrateLead);
-    return merged;
-  });
-
+  const [data, setData] = useState(EMPTY_STATE);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [currentUser, setCurrentUser] = useState(() => {
-    if (typeof window === "undefined") return null;
-    const id = loadAuth();
-    return id && REPS.some((r) => r.id === id) ? id : null;
+    const stored = getStoredUser();
+    return getToken() && stored ? stored.id : null;
   });
+  const [currentUserName, setCurrentUserName] = useState(() => {
+    const stored = getStoredUser();
+    return getToken() && stored ? stored.name : null;
+  });
+  const refreshIdRef = useRef(0);
 
-  const login = useCallback((userId, password) => {
-    if (password !== DEMO_PASSWORD) return { ok: false, error: "密碼不正確" };
-    if (!REPS.some((r) => r.id === userId)) return { ok: false, error: "帳號不存在" };
-    setCurrentUser(userId);
-    saveAuth(userId);
-    return { ok: true };
-  }, []);
-
-  const logout = useCallback(() => {
-    setCurrentUser(null);
-    saveAuth(null);
+  const refresh = useCallback(async () => {
+    if (!getToken()) {
+      setData(EMPTY_STATE);
+      setLoading(false);
+      return;
+    }
+    const myId = ++refreshIdRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await Promise.all(ENTITY_KEYS.map((k) => api.list(k)));
+      if (myId !== refreshIdRef.current) return; // stale
+      const next = {};
+      ENTITY_KEYS.forEach((k, i) => (next[k] = results[i]));
+      setData(next);
+    } catch (err) {
+      if (err.status === 401) {
+        // session expired, clear user
+        setCurrentUser(null);
+        setCurrentUserName(null);
+        setData(EMPTY_STATE);
+      } else {
+        setError(err.message || "載入失敗");
+      }
+    } finally {
+      if (myId === refreshIdRef.current) setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    saveToStorage(state);
-  }, [state]);
+    if (currentUser) refresh();
+    else setLoading(false);
+  }, [currentUser, refresh]);
 
-  const addItem = useCallback((entity, item) => {
-    const id = item.id || newId(ID_PREFIX[entity] || "x");
-    const created = item.created || today();
-    const record = { ...item, id, created };
-    setState((prev) => ({ ...prev, [entity]: [record, ...prev[entity]] }));
-    return record;
+  // ── Auth ────────────────────────────────────────────
+  const login = useCallback(async (userId, password) => {
+    try {
+      const result = await api.login(userId, password);
+      setCurrentUser(result.user.id);
+      setCurrentUserName(result.user.name);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message || "登入失敗" };
+    }
   }, []);
 
-  const updateItem = useCallback((entity, id, patch) => {
-    setState((prev) => ({
+  const logout = useCallback(() => {
+    api.logout();
+    setCurrentUser(null);
+    setCurrentUserName(null);
+    setData(EMPTY_STATE);
+  }, []);
+
+  // ── CRUD with optimistic refresh ────────────────────
+  const addItem = useCallback(async (entity, item) => {
+    const created = await api.create(entity, item);
+    setData((prev) => ({ ...prev, [entity]: [created, ...prev[entity]] }));
+    return created;
+  }, []);
+
+  const updateItem = useCallback(async (entity, id, patch) => {
+    const updated = await api.update(entity, id, patch);
+    setData((prev) => ({
       ...prev,
-      [entity]: prev[entity].map((x) => (x.id === id ? { ...x, ...patch } : x)),
+      [entity]: prev[entity].map((x) => (x.id === id ? updated : x)),
+    }));
+    return updated;
+  }, []);
+
+  const removeItem = useCallback(async (entity, id) => {
+    await api.remove(entity, id);
+    setData((prev) => ({
+      ...prev,
+      [entity]: prev[entity].filter((x) => x.id !== id),
     }));
   }, []);
 
-  const removeItem = useCallback((entity, id) => {
-    setState((prev) => ({ ...prev, [entity]: prev[entity].filter((x) => x.id !== id) }));
-  }, []);
-
-  const moveDealStage = useCallback((dealId, stage) => {
-    setState((prev) => ({
+  const moveDealStage = useCallback(async (dealId, stage) => {
+    const updated = await api.moveDealStage(dealId, stage);
+    setData((prev) => ({
       ...prev,
-      deals: prev.deals.map((d) => (d.id === dealId ? { ...d, stage } : d)),
+      deals: prev.deals.map((d) => (d.id === dealId ? updated : d)),
     }));
   }, []);
 
-  const convertLeadToCustomer = useCallback(
-    (leadId, customerInput) => {
-      const newCustomer = {
-        ...customerInput,
-        id: newId(ID_PREFIX.customers),
-        created: today(),
-      };
-      setState((prev) => {
-        const lead = prev.leads.find((l) => l.id === leadId);
-        if (lead?.channelId && !newCustomer.channelId) {
-          newCustomer.channelId = lead.channelId;
-        }
-        return {
-          ...prev,
-          customers: [newCustomer, ...prev.customers],
-          leads: prev.leads.map((l) =>
-            l.id === leadId ? { ...l, status: "已轉客戶", convertedCustomerId: newCustomer.id } : l
-          ),
-        };
-      });
-      return newCustomer;
-    },
-    []
-  );
+  const convertLeadToCustomer = useCallback(async (leadId, customerInput) => {
+    const { customer } = await api.convertLeadToCustomer(leadId, customerInput);
+    // Refresh both leads (status changed) and customers (new one added)
+    await refresh();
+    return customer;
+  }, [refresh]);
 
-  const resetAll = useCallback(() => {
-    clearStorage();
-    setState(DEFAULT_STATE);
-  }, []);
-
-  const api = useMemo(
+  const apiObj = useMemo(
     () => ({
-      ...state,
+      ...data,
       currentUser,
+      currentUserName,
+      loading,
+      error,
       login,
       logout,
+      refresh,
       addItem,
       updateItem,
       removeItem,
       moveDealStage,
       convertLeadToCustomer,
-      resetAll,
     }),
     [
-      state,
+      data,
       currentUser,
+      currentUserName,
+      loading,
+      error,
       login,
       logout,
+      refresh,
       addItem,
       updateItem,
       removeItem,
       moveDealStage,
       convertLeadToCustomer,
-      resetAll,
     ]
   );
 
-  return api;
+  return apiObj;
 }
