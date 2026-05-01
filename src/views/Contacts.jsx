@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { REPS } from "../constants.js";
-import { getCustomer, getRep, today } from "../utils.js";
+import { getCustomer, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
@@ -107,10 +107,13 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
           customers={customers}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
-          onDelete={() => {
-            if (confirm(`確定刪除聯系人「${current.name}」？`)) {
-              store.removeItem("contacts", current.id);
+          onDelete={async () => {
+            if (!confirm(`確定刪除聯系人「${current.name}」？`)) return;
+            try {
+              await store.removeItem("contacts", current.id);
               setDrawer(null);
+            } catch (err) {
+              alert(err.message || "刪除失敗");
             }
           }}
         />
@@ -122,13 +125,17 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
           mode={drawer.mode}
           customers={customers}
           onClose={() => setDrawer(null)}
-          onSubmit={(data) => {
-            if (drawer.mode === "edit") {
-              store.updateItem("contacts", current.id, data);
-              setDrawer({ mode: "detail", id: current.id });
-            } else {
-              const created = store.addItem("contacts", { ...data, created: today() });
-              setDrawer({ mode: "detail", id: created.id });
+          onSubmit={async (data) => {
+            try {
+              if (drawer.mode === "edit") {
+                await store.updateItem("contacts", current.id, data);
+                setDrawer({ mode: "detail", id: current.id });
+              } else {
+                const created = await store.addItem("contacts", data);
+                setDrawer({ mode: "detail", id: created.id });
+              }
+            } catch (err) {
+              alert(err.message || "儲存失敗");
             }
           }}
         />

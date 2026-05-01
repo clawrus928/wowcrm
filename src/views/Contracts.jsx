@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { CONTRACT_STATUSES, REPS } from "../constants.js";
-import { fmt, getCustomer, getDeal, getRep, today } from "../utils.js";
+import { fmt, getCustomer, getDeal, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -153,10 +153,13 @@ export function ContractsView({ store }) {
           deals={deals}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
-          onDelete={() => {
-            if (confirm(`確定刪除合同「${current.title}」？`)) {
-              store.removeItem("contracts", current.id);
+          onDelete={async () => {
+            if (!confirm(`確定刪除合同「${current.title}」？`)) return;
+            try {
+              await store.removeItem("contracts", current.id);
               setDrawer(null);
+            } catch (err) {
+              alert(err.message || "刪除失敗");
             }
           }}
         />
@@ -169,13 +172,17 @@ export function ContractsView({ store }) {
           customers={customers}
           deals={deals}
           onClose={() => setDrawer(null)}
-          onSubmit={(data) => {
-            if (drawer.mode === "edit") {
-              store.updateItem("contracts", current.id, data);
-              setDrawer({ mode: "detail", id: current.id });
-            } else {
-              const created = store.addItem("contracts", { ...data, created: today() });
-              setDrawer({ mode: "detail", id: created.id });
+          onSubmit={async (data) => {
+            try {
+              if (drawer.mode === "edit") {
+                await store.updateItem("contracts", current.id, data);
+                setDrawer({ mode: "detail", id: current.id });
+              } else {
+                const created = await store.addItem("contracts", data);
+                setDrawer({ mode: "detail", id: created.id });
+              }
+            } catch (err) {
+              alert(err.message || "儲存失敗");
             }
           }}
         />

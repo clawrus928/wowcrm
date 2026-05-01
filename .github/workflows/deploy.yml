@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy to EC2
 
 on:
   push:
@@ -7,43 +7,90 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  packages: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: clawrus928/wowcrm
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          node-version: 20
-          cache: npm
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: npm ci
-
-      - name: Build
-        env:
-          GITHUB_PAGES: "1"
-        run: npm run build
-
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
+      - name: Build and push image
+        uses: docker/build-push-action@v6
         with:
-          path: dist
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            sudo mkdir -p /opt/wowcrm /var/lib/wowcrm
+            sudo chown $USER:$USER /opt/wowcrm
+            cd /opt/wowcrm
+
+            # Write docker-compose.yml from secret-driven template
+            cat > docker-compose.yml <<'YAML'
+            services:
+              app:
+                image: ghcr.io/clawrus928/wowcrm:latest
+                container_name: wowcrm
+                restart: unless-stopped
+                ports:
+                  - "80:8080"
+                volumes:
+                  - /var/lib/wowcrm:/data
+                environment:
+                  JWT_SECRET: ${JWT_SECRET}
+                  DEFAULT_PASSWORD: ${DEFAULT_PASSWORD}
+            YAML
+
+            # Write .env from GitHub secrets
+            cat > .env <<EOF
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            DEFAULT_PASSWORD=${{ secrets.DEFAULT_PASSWORD }}
+            EOF
+            chmod 600 .env
+
+            # Pull new image and restart
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            # Wait for health
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -fsS http://localhost/api/health > /dev/null 2>&1; then
+                echo "✅ Deploy verified"
+                exit 0
+              fi
+              echo "Waiting for app... ($i/10)"
+              sleep 2
+            done
+            echo "❌ Health check failed"
+            docker logs wowcrm --tail=50
+            exit 1

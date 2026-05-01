@@ -4,7 +4,7 @@ import {
   CHANNEL_TYPES,
   REPS,
 } from "../constants.js";
-import { fmt, getRep, today } from "../utils.js";
+import { fmt, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -212,10 +212,13 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
           onOpenCustomer={onOpenCustomer}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
-          onDelete={() => {
-            if (confirm(`確定刪除渠道「${current.name}」？`)) {
-              store.removeItem("channels", current.id);
+          onDelete={async () => {
+            if (!confirm(`確定刪除渠道「${current.name}」？`)) return;
+            try {
+              await store.removeItem("channels", current.id);
               setDrawer(null);
+            } catch (err) {
+              alert(err.message || "刪除失敗");
             }
           }}
         />
@@ -226,13 +229,17 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
           initial={drawer.mode === "edit" ? current : { ...EMPTY_CHANNEL, owner: currentUser }}
           mode={drawer.mode}
           onClose={() => setDrawer(null)}
-          onSubmit={(data) => {
-            if (drawer.mode === "edit") {
-              store.updateItem("channels", current.id, data);
-              setDrawer({ mode: "detail", id: current.id });
-            } else {
-              const created = store.addItem("channels", { ...data, created: today() });
-              setDrawer({ mode: "detail", id: created.id });
+          onSubmit={async (data) => {
+            try {
+              if (drawer.mode === "edit") {
+                await store.updateItem("channels", current.id, data);
+                setDrawer({ mode: "detail", id: current.id });
+              } else {
+                const created = await store.addItem("channels", data);
+                setDrawer({ mode: "detail", id: created.id });
+              }
+            } catch (err) {
+              alert(err.message || "儲存失敗");
             }
           }}
         />

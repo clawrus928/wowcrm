@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { LEAD_SOURCES, LEAD_STATUSES, REPS } from "../constants.js";
-import { getRep, today } from "../utils.js";
+import { getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -123,10 +123,13 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onConvert={() => setDrawer({ mode: "convert", id: current.id })}
-          onDelete={() => {
-            if (confirm(`確定刪除線索「${current.name}」？`)) {
-              store.removeItem("leads", current.id);
+          onDelete={async () => {
+            if (!confirm(`確定刪除線索「${current.name}」？`)) return;
+            try {
+              await store.removeItem("leads", current.id);
               setDrawer(null);
+            } catch (err) {
+              alert(err.message || "刪除失敗");
             }
           }}
         />
@@ -138,13 +141,17 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
           mode={drawer.mode}
           channels={channels}
           onClose={() => setDrawer(null)}
-          onSubmit={(data) => {
-            if (drawer.mode === "edit") {
-              store.updateItem("leads", current.id, data);
-              setDrawer({ mode: "detail", id: current.id });
-            } else {
-              const created = store.addItem("leads", { ...data, created: today() });
-              setDrawer({ mode: "detail", id: created.id });
+          onSubmit={async (data) => {
+            try {
+              if (drawer.mode === "edit") {
+                await store.updateItem("leads", current.id, data);
+                setDrawer({ mode: "detail", id: current.id });
+              } else {
+                const created = await store.addItem("leads", data);
+                setDrawer({ mode: "detail", id: created.id });
+              }
+            } catch (err) {
+              alert(err.message || "儲存失敗");
             }
           }}
         />
@@ -154,10 +161,14 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
         <ConvertLeadDrawer
           lead={current}
           onClose={() => setDrawer({ mode: "detail", id: current.id })}
-          onSubmit={(customerData) => {
-            const newCust = store.convertLeadToCustomer(current.id, customerData);
-            alert(`已轉為客戶：${newCust.name}`);
-            setDrawer(null);
+          onSubmit={async (customerData) => {
+            try {
+              const newCust = await store.convertLeadToCustomer(current.id, customerData);
+              alert(`已轉為客戶：${newCust.name}`);
+              setDrawer(null);
+            } catch (err) {
+              alert(err.message || "轉換失敗");
+            }
           }}
         />
       )}

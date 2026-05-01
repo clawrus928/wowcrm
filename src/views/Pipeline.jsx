@@ -14,10 +14,14 @@ export function PipelineView({ store, onOpenSupplier }) {
     (d) => d.product === activeProduct && d.status === "進行中"
   );
 
-  const handleDrop = (stage) => {
-    if (dragId) {
-      store.moveDealStage(dragId, stage);
-      setDragId(null);
+  const handleDrop = async (stage) => {
+    if (!dragId) return;
+    const id = dragId;
+    setDragId(null);
+    try {
+      await store.moveDealStage(id, stage);
+    } catch (err) {
+      alert(err.message || "移動失敗");
     }
   };
 
@@ -140,7 +144,13 @@ export function PipelineView({ store, onOpenSupplier }) {
               onDrop={() => handleDrop(stage)}
               onDragId={setDragId}
               allStages={stages}
-              onMoveDeal={(id, s) => store.moveDealStage(id, s)}
+              onMoveDeal={async (id, s) => {
+                try {
+                  await store.moveDealStage(id, s);
+                } catch (err) {
+                  alert(err.message || "移動失敗");
+                }
+              }}
               onOpenSupplier={onOpenSupplier}
             />
           );
