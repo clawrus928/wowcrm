@@ -4,7 +4,7 @@ services:
     container_name: wowcrm
     restart: unless-stopped
     ports:
-      - "3002:8080"
+      - "127.0.0.1:8002:8080"
     volumes:
       - /var/lib/wowcrm:/data
     environment:
