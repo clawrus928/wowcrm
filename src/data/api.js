@@ -1,75 +1,100 @@
-const API_BASE = "/api";
+// API client. Same-origin by default; override with VITE_API_URL at build time.
+const BASE = import.meta.env.VITE_API_URL || "";
 
-function getToken() {
-  return localStorage.getItem("token");
-}
+const TOKEN_KEY = "wowcrm:token";
+const USER_KEY = "wowcrm:user";
 
-function getStoredUser() {
-  const user = localStorage.getItem("user");
-  return user ? JSON.parse(user) : null;
-}
-
-async function request(method, path, body = null) {
-  const token = getToken();
-  const headers = {
-    "Content-Type": "application/json",
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
   }
+}
 
-  const options = {
+export function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredUser() {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setSession(token, user) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    else localStorage.removeItem(USER_KEY);
+  } catch {
+    // ignore quota or private mode errors
+  }
+}
+
+async function call(path, { method = "GET", body, auth = true } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (auth) {
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  const res = await fetch(`${BASE}/api${path}`, {
     method,
     headers,
-  };
-
-  if (body) {
-    options.body = JSON.stringify(body);
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) {
+    setSession(null, null);
+    throw new ApiError("登入已過期", 401);
   }
-
-  const res = await fetch(`${API_BASE}${path}`, options);
-  const data = await res.json();
+  let data = null;
+  const text = await res.text();
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  }
+  if (!res.ok) {
+    const msg = (data && data.error) || `HTTP ${res.status}`;
+    throw new ApiError(msg, res.status);
+  }
   return data;
 }
 
-const api = {
-  list(entity) {
-    return request("GET", `/${entity}`);
+export const api = {
+  // auth
+  listUsers: () => call("/auth/users", { auth: false }),
+  login: async (userId, password) => {
+    const result = await call("/auth/login", {
+      method: "POST",
+      body: { userId, password },
+      auth: false,
+    });
+    setSession(result.token, result.user);
+    return result;
   },
+  logout: () => setSession(null, null),
+  me: () => call("/auth/me"),
 
-  create(entity, item) {
-    return request("POST", `/${entity}`, item);
-  },
+  // entities
+  list: (entity) => call(`/${entity}`),
+  get: (entity, id) => call(`/${entity}/${id}`),
+  create: (entity, body) => call(`/${entity}`, { method: "POST", body }),
+  update: (entity, id, patch) => call(`/${entity}/${id}`, { method: "PATCH", body: patch }),
+  remove: (entity, id) => call(`/${entity}/${id}`, { method: "DELETE" }),
 
-  update(entity, id, patch) {
-    return request("PUT", `/${entity}/${id}`, patch);
-  },
-
-  remove(entity, id) {
-    return request("DELETE", `/${entity}/${id}`);
-  },
-
-  async login(userId, password) {
-    const res = await request("POST", "/auth/login", { userId, password });
-    if (res.token && res.user) {
-      localStorage.setItem("token", res.token);
-      localStorage.setItem("user", JSON.stringify(res.user));
-    }
-    return res;
-  },
-
-  logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-  },
-
-  moveDealStage(dealId, stage) {
-    return request("PATCH", `/deals/${dealId}/stage`, { stage });
-  },
-
-  convertLeadToCustomer(leadId, customerInput) {
-    return request("POST", `/leads/${leadId}/convert`, customerInput);
-  },
+  // pipeline / conversion
+  moveDealStage: (dealId, stage) =>
+    call(`/deals/${dealId}/stage`, { method: "POST", body: { stage } }),
+  convertLeadToCustomer: (leadId, customerInput) =>
+    call(`/leads/${leadId}/convert`, { method: "POST", body: customerInput }),
 };
-
-export { api, getStoredUser, getToken };
