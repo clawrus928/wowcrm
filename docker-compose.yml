@@ -4,9 +4,9 @@ services:
     container_name: wowcrm
     restart: unless-stopped
     ports:
-      - "80:8080"
+      - "3002:8080"
     volumes:
       - /var/lib/wowcrm:/data
     environment:
-      JWT_SECRET: ${JWT_SECRET:-CHANGE-ME-IN-PRODUCTION}
-      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:-wowcrm}
+      JWT_SECRET: ${JWT_SECRET}
+      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD}

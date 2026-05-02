@@ -89,7 +89,7 @@ export function LoginView({ onLogin }) {
             WOW CRM
           </h1>
           <div style={{ fontSize: 12, color: T.textTertiary }}>
-            登入以管理你的客戶與商機
+            世界上最簡單的 CRM 系統
           </div>
         </div>
 
@@ -103,7 +103,7 @@ export function LoginView({ onLogin }) {
               marginBottom: 6,
             }}
           >
-            選擇帳號
+            使用者
           </label>
           <select
             value={userId}
@@ -169,14 +169,13 @@ export function LoginView({ onLogin }) {
             alignItems: "center",
             fontSize: 11,
             color: T.textTertiary,
-            paddingTop: 4,
             borderTop: `1px dashed ${T.borderLight}`,
             marginTop: 4,
             paddingTop: 12,
           }}
         >
           <span>
-            示範密碼：
+            測試密碼：
             <code
               style={{
                 fontFamily: T.mono,
@@ -202,7 +201,7 @@ export function LoginView({ onLogin }) {
               padding: 0,
             }}
           >
-            自動填入
+            一鍵填入
           </button>
         </div>
       </form>
