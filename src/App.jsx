@@ -15,6 +15,7 @@ import { DashboardView } from "./views/Dashboard.jsx";
 import { ChannelsView } from "./views/Channels.jsx";
 import { SuppliersView } from "./views/Suppliers.jsx";
 import { LoginView } from "./views/Login.jsx";
+import { VersionFooter } from "./components/VersionFooter.jsx";
 
 const VIEW_TITLES = {
   dashboard: "儀表板",
@@ -214,6 +215,7 @@ export default function App() {
       </div>
 
       {isMobile && <MobileBottomNav active={view} onChange={setView} />}
+      <VersionFooter />
     </div>
   );
 }

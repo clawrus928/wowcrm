@@ -1,6 +1,10 @@
 # ── Stage 1: build frontend ─────────────────────────────────
 FROM node:20-bookworm-slim AS frontend
 WORKDIR /app
+ARG GIT_SHA=dev
+ARG BUILD_TIME=unknown
+ENV VITE_GIT_SHA=$GIT_SHA
+ENV VITE_BUILD_TIME=$BUILD_TIME
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY index.html vite.config.js ./

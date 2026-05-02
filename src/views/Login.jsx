@@ -3,6 +3,7 @@ import { REPS } from "../constants.js";
 import { DEMO_PASSWORD } from "../data/store.js";
 import { T } from "../theme.js";
 import { s } from "../styles.js";
+import { VersionFooter } from "../components/VersionFooter.jsx";
 
 export function LoginView({ onLogin }) {
   const [userId, setUserId] = useState(REPS[0].id);
@@ -204,6 +205,7 @@ export function LoginView({ onLogin }) {
             一鍵填入
           </button>
         </div>
+        <VersionFooter corner="center" />
       </form>
     </div>
   );
