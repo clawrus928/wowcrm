@@ -66,7 +66,7 @@ jobs:
                 container_name: wowcrm
                 restart: unless-stopped
                 ports:
-                  - "3002:8080"
+                  - "127.0.0.1:8002:8080"
                 volumes:
                   - /var/lib/wowcrm:/data
                 environment:
@@ -87,7 +87,7 @@ jobs:
 
             # Wait for health
             for i in 1 2 3 4 5 6 7 8 9 10; do
-              if curl -fsS http://localhost:3002/api/health > /dev/null 2>&1; then
+              if curl -fsS http://127.0.0.1:8002/api/health > /dev/null 2>&1; then
                 echo "✅ Deploy verified"
                 exit 0
               fi
