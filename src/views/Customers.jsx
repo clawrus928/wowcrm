@@ -3,8 +3,11 @@ import {
   CUSTOMER_STATUSES,
   INDUSTRIES,
   LEAD_SOURCES,
+  PRODUCTS,
   REPS,
 } from "../constants.js";
+import { ContactFormDrawer } from "./Contacts.jsx";
+import { DealFormDrawer } from "./Deals.jsx";
 import { fmt, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
@@ -39,12 +42,13 @@ export function CustomersView({
   onOpenDeal,
   onOpenChannel,
 }) {
-  const { customers, contacts, deals, contracts, quotes, channels, currentUser } = store;
+  const { customers, contacts, deals, contracts, quotes, channels, suppliers, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fIndustry, setFIndustry] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
+  const [subDrawer, setSubDrawer] = useState(null); // { type: "contact"|"deal", customer }
 
   if (drawerSeed && !drawer) {
     setDrawer(drawerSeed);
@@ -154,6 +158,8 @@ export function CustomersView({
           onOpenContact={onOpenContact}
           onOpenDeal={onOpenDeal}
           onOpenChannel={onOpenChannel}
+          onCreateContact={() => setSubDrawer({ type: "contact", customer: current })}
+          onCreateDeal={() => setSubDrawer({ type: "deal", customer: current })}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
@@ -188,6 +194,59 @@ export function CustomersView({
           }}
         />
       )}
+
+      {subDrawer?.type === "contact" && (
+        <ContactFormDrawer
+          mode="create"
+          customers={customers}
+          initial={{
+            customerId: subDrawer.customer.id,
+            name: "",
+            role: "",
+            phone: "",
+            email: "",
+            owner: subDrawer.customer.owner || currentUser,
+            collaborators: [],
+          }}
+          onClose={() => setSubDrawer(null)}
+          onSubmit={async (data) => {
+            try {
+              await store.addItem("contacts", data);
+              setSubDrawer(null);
+            } catch (err) {
+              alert(err.message || "儲存失敗");
+            }
+          }}
+        />
+      )}
+
+      {subDrawer?.type === "deal" && (
+        <DealFormDrawer
+          mode="create"
+          customers={customers}
+          suppliers={suppliers}
+          initial={{
+            title: "",
+            customerId: subDrawer.customer.id,
+            product: PRODUCTS[0].id,
+            stage: PRODUCTS[0].stages[0],
+            amount: 0,
+            status: "進行中",
+            supplierId: null,
+            owner: subDrawer.customer.owner || currentUser,
+            collaborators: [],
+          }}
+          onClose={() => setSubDrawer(null)}
+          onSubmit={async (data) => {
+            try {
+              await store.addItem("deals", data);
+              setSubDrawer(null);
+            } catch (err) {
+              alert(err.message || "儲存失敗");
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -202,6 +261,8 @@ function CustomerDetailDrawer({
   onOpenContact,
   onOpenDeal,
   onOpenChannel,
+  onCreateContact,
+  onCreateDeal,
   onClose,
   onEdit,
   onDelete,
@@ -266,7 +327,29 @@ function CustomerDetailDrawer({
         </DetailRow>
       </DetailSection>
 
-      <DetailSection title={`聯系人（${contacts.length}）`}>
+      <DetailSection
+        title={`聯系人（${contacts.length}）`}
+        action={
+          onCreateContact && (
+            <button
+              type="button"
+              onClick={onCreateContact}
+              style={{
+                background: "none",
+                border: "none",
+                color: T.accent,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: 0,
+                fontFamily: T.font,
+              }}
+            >
+              ＋ 新增
+            </button>
+          )
+        }
+      >
         {contacts.length === 0 ? (
           <div style={{ fontSize: 12, color: T.textTertiary }}>暫無</div>
         ) : (
@@ -296,7 +379,29 @@ function CustomerDetailDrawer({
         )}
       </DetailSection>
 
-      <DetailSection title={`商機（${deals.length}）`}>
+      <DetailSection
+        title={`商機（${deals.length}）`}
+        action={
+          onCreateDeal && (
+            <button
+              type="button"
+              onClick={onCreateDeal}
+              style={{
+                background: "none",
+                border: "none",
+                color: T.accent,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: 0,
+                fontFamily: T.font,
+              }}
+            >
+              ＋ 新增
+            </button>
+          )
+        }
+      >
         {deals.length === 0 ? (
           <div style={{ fontSize: 12, color: T.textTertiary }}>暫無</div>
         ) : (
