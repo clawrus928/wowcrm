@@ -40,7 +40,8 @@ function setSession(token, user) {
 }
 
 async function call(path, { method = "GET", body, auth = true } = {}) {
-  const headers = { "Content-Type": "application/json" };
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
   if (auth) {
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -48,7 +49,7 @@ async function call(path, { method = "GET", body, auth = true } = {}) {
   const res = await fetch(`${BASE}/api${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (res.status === 401) {
     setSession(null, null);
