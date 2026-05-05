@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  CUSTOMER_STATUSES,
   INDUSTRIES,
   LEAD_SOURCES,
   PRODUCTS,
@@ -11,7 +10,6 @@ import { DealFormDrawer } from "./Deals.jsx";
 import { fmt, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
-import { StatusBadge } from "../components/Badge.jsx";
 import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
 import { OwnerTabs } from "../components/Tabs.jsx";
 import { Drawer } from "../components/Drawer.jsx";
@@ -28,7 +26,6 @@ const EMPTY_CUSTOMER = {
   corpGroup: null,
   industry: "其他",
   address: "",
-  status: "初訪",
   source: "官網",
   owner: null,
   collaborators: [],
@@ -45,7 +42,6 @@ export function CustomersView({
   const { customers, contacts, deals, contracts, quotes, channels, suppliers, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fIndustry, setFIndustry] = useState("all");
-  const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
   const [subDrawer, setSubDrawer] = useState(null); // { type: "contact"|"deal", customer }
@@ -60,13 +56,12 @@ export function CustomersView({
     if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
     if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
     if (fIndustry !== "all") d = d.filter((x) => x.industry === fIndustry);
-    if (fStatus !== "all") d = d.filter((x) => x.status === fStatus);
     if (search)
       d = d.filter(
         (x) => x.name.includes(search) || (x.corpGroup || "").includes(search)
       );
     return d;
-  }, [customers, tab, fIndustry, fStatus, search]);
+  }, [customers, tab, fIndustry, search]);
 
   const current = drawer?.id ? customers.find((c) => c.id === drawer.id) : null;
 
@@ -88,9 +83,32 @@ export function CustomersView({
         ),
     },
     {
-      key: "status",
-      label: "跟進狀態",
-      render: (r) => <StatusBadge status={r.status} />,
+      key: "dealCount",
+      label: "商機",
+      mono: true,
+      render: (r) => {
+        const n = deals.filter((d) => d.customerId === r.id).length;
+        return n > 0 ? (
+          <span style={{ fontWeight: 600, color: T.text }}>{n}</span>
+        ) : (
+          <span style={{ color: T.textTertiary }}>0</span>
+        );
+      },
+    },
+    {
+      key: "wonAmount",
+      label: "已成交",
+      mono: true,
+      render: (r) => {
+        const won = deals
+          .filter((d) => d.customerId === r.id && d.status === "已成交")
+          .reduce((sum, d) => sum + (d.amount || 0), 0);
+        return won > 0 ? (
+          <span style={{ fontWeight: 600, color: "#059669" }}>{fmt(won)}</span>
+        ) : (
+          <span style={{ color: T.textTertiary }}>—</span>
+        );
+      },
     },
     { key: "source", label: "客戶來源" },
     {
@@ -111,14 +129,6 @@ export function CustomersView({
       />
       <OwnerTabs active={tab} onChange={setTab} />
       <FilterRow>
-        <select style={s.select} value={fStatus} onChange={(e) => setFStatus(e.target.value)}>
-          <option value="all">跟進狀態：全部</option>
-          {CUSTOMER_STATUSES.map((x) => (
-            <option key={x} value={x}>
-              {x}
-            </option>
-          ))}
-        </select>
         <select
           style={s.select}
           value={fIndustry}
@@ -287,6 +297,64 @@ function CustomerDetailDrawer({
         </>
       }
     >
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        <div
+          style={{
+            flex: 1,
+            background: T.surfaceAlt,
+            borderRadius: T.radiusSm,
+            padding: "10px 12px",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 800,
+              color: deals.length > 0 ? T.text : T.textTertiary,
+              fontFamily: T.mono,
+              lineHeight: 1.1,
+            }}
+          >
+            {deals.length}
+          </div>
+          <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 3 }}>商機</div>
+        </div>
+        <div
+          style={{
+            flex: 1,
+            background: T.surfaceAlt,
+            borderRadius: T.radiusSm,
+            padding: "10px 12px",
+            textAlign: "center",
+          }}
+        >
+          {(() => {
+            const won = deals
+              .filter((d) => d.status === "已成交")
+              .reduce((sum, d) => sum + (d.amount || 0), 0);
+            return (
+              <>
+                <div
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 800,
+                    color: won > 0 ? "#059669" : T.textTertiary,
+                    fontFamily: T.mono,
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {won > 0 ? fmt(won) : "—"}
+                </div>
+                <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 3 }}>
+                  總成交金額
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+
       <DetailSection title="基本資料">
         <DetailRow label="商戶名稱">{customer.name}</DetailRow>
         <DetailRow label="集團">
@@ -296,9 +364,6 @@ function CustomerDetailDrawer({
         </DetailRow>
         <DetailRow label="所屬行業">{customer.industry}</DetailRow>
         <DetailRow label="地址">{customer.address}</DetailRow>
-        <DetailRow label="跟進狀態">
-          <StatusBadge status={customer.status} />
-        </DetailRow>
         <DetailRow label="客戶來源">{customer.source}</DetailRow>
         {channel && (
           <DetailRow label="渠道方">
@@ -537,13 +602,6 @@ function CustomerFormDrawer({ initial, mode, onClose, onSubmit }) {
       </Field>
       <Field label="地址">
         <TextInput value={form.address} onChange={(v) => set("address", v)} />
-      </Field>
-      <Field label="跟進狀態">
-        <SelectInput
-          value={form.status}
-          onChange={(v) => set("status", v)}
-          options={CUSTOMER_STATUSES}
-        />
       </Field>
       <Field label="客戶來源">
         <SelectInput
