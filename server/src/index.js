@@ -140,18 +140,39 @@ app.post("/api/leads/:id/convert", { preHandler: auth }, async (req, reply) => {
   if (lead.channelId && !customerInput.channelId) {
     customerInput.channelId = lead.channelId;
   }
+  const today = new Date().toISOString().slice(0, 10);
+  const customerOwner = customerInput.owner || lead.owner || req.user.sub;
   const customerId = newId("customers");
   const customer = createRecord(db, "customers", customerId, {
     ...customerInput,
     id: customerId,
-    owner: customerInput.owner || lead.owner || req.user.sub,
-    created: new Date().toISOString().slice(0, 10),
+    owner: customerOwner,
+    created: today,
   });
+
+  // Auto-create a Contact from the lead's contact info so the
+  // person we originally talked to isn't lost.
+  let contact = null;
+  if (lead.name?.trim() || lead.phone?.trim()) {
+    const contactId = newId("contacts");
+    contact = createRecord(db, "contacts", contactId, {
+      id: contactId,
+      customerId,
+      name: lead.name || "",
+      role: "",
+      phone: lead.phone || "",
+      email: "",
+      owner: customerOwner,
+      collaborators: [],
+      created: today,
+    });
+  }
+
   updateRecord(db, "leads", lead.id, {
     status: "已轉客戶",
     convertedCustomerId: customerId,
   });
-  return { customer };
+  return { customer, contact };
 });
 
 // ── Static frontend ────────────────────────────────────
