@@ -227,6 +227,7 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
 function QuoteFormDrawer({ initial, mode, customers, deals, onClose, onSubmit }) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const dealOptions = form.customerId
@@ -253,12 +254,16 @@ function QuoteFormDrawer({ initial, mode, customers, deals, onClose, onSubmit })
             取消
           </button>
           <button
-            onClick={() => {
-              if (validate()) onSubmit(form);
+            onClick={async () => {
+              if (submitting || !validate()) return;
+              setSubmitting(true);
+              try { await onSubmit(form); }
+              finally { setSubmitting(false); }
             }}
-            style={s.btn(true)}
+            disabled={submitting}
+            style={{ ...s.btn(true), opacity: submitting ? 0.6 : 1 }}
           >
-            {mode === "edit" ? "儲存" : "建立"}
+            {submitting ? "儲存中…" : mode === "edit" ? "儲存" : "建立"}
           </button>
         </>
       }
