@@ -374,7 +374,6 @@ function ConvertLeadDrawer({ lead, onClose, onSubmit }) {
     corpGroup: null,
     industry: "其他",
     address: "",
-    status: "初訪",
     source: lead.source,
     channelId: lead.channelId || null,
     owner: lead.owner,
