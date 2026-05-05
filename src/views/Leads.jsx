@@ -52,11 +52,11 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
 
   const columns = [
     {
-      key: "name",
-      label: "姓名",
-      render: (r) => <span style={s.link}>{r.name}</span>,
+      key: "company",
+      label: "商戶名稱",
+      render: (r) => <span style={s.link}>{r.company}</span>,
     },
-    { key: "company", label: "商戶名稱" },
+    { key: "name", label: "聯絡人" },
     { key: "phone", label: "手機", mono: true },
     {
       key: "status",
@@ -124,7 +124,7 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onConvert={() => setDrawer({ mode: "convert", id: current.id })}
           onDelete={async () => {
-            if (!confirm(`確定刪除線索「${current.name}」？`)) return;
+            if (!confirm(`確定刪除線索「${current.company}」？`)) return;
             try {
               await store.removeItem("leads", current.id);
               setDrawer(null);
@@ -196,7 +196,7 @@ function LeadDetailDrawer({
   return (
     <Drawer
       open
-      title={`線索 · ${lead.name}`}
+      title={`線索 · ${lead.company}`}
       onClose={onClose}
       footer={
         <>
@@ -216,8 +216,8 @@ function LeadDetailDrawer({
       }
     >
       <DetailSection title="基本資料">
-        <DetailRow label="姓名">{lead.name}</DetailRow>
         <DetailRow label="商戶名稱">{lead.company}</DetailRow>
+        <DetailRow label="聯絡人">{lead.name}</DetailRow>
         <DetailRow label="手機">
           <span style={{ fontFamily: T.mono }}>{lead.phone}</span>
         </DetailRow>
@@ -269,8 +269,8 @@ function LeadFormDrawer({ initial, mode, channels, onClose, onSubmit }) {
 
   const validate = () => {
     const e = {};
-    if (!form.name?.trim()) e.name = "請輸入姓名";
     if (!form.company?.trim()) e.company = "請輸入商戶名稱";
+    if (!form.name?.trim()) e.name = "請輸入聯絡人姓名";
     if (!form.phone?.trim()) e.phone = "請輸入手機";
     if (form.source === "渠道方" && !form.channelId)
       e.channelId = "請選擇渠道方";
@@ -305,11 +305,11 @@ function LeadFormDrawer({ initial, mode, channels, onClose, onSubmit }) {
         </>
       }
     >
-      <Field label="姓名" required error={errors.name}>
-        <TextInput value={form.name} onChange={(v) => set("name", v)} />
-      </Field>
       <Field label="商戶名稱" required error={errors.company}>
         <TextInput value={form.company} onChange={(v) => set("company", v)} />
+      </Field>
+      <Field label="聯絡人" required error={errors.name}>
+        <TextInput value={form.name} onChange={(v) => set("name", v)} />
       </Field>
       <Field label="手機" required error={errors.phone}>
         <TextInput value={form.phone} onChange={(v) => set("phone", v)} />
