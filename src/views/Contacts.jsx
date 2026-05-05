@@ -189,7 +189,7 @@ function ContactDetailDrawer({ contact, customers, onClose, onEdit, onDelete }) 
   );
 }
 
-function ContactFormDrawer({ initial, mode, customers, onClose, onSubmit }) {
+export function ContactFormDrawer({ initial, mode, customers, onClose, onSubmit }) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);

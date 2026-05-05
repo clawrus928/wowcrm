@@ -277,7 +277,7 @@ function DealDetailDrawer({
   );
 }
 
-function DealFormDrawer({ initial, mode, customers, suppliers, onClose, onSubmit }) {
+export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, onSubmit }) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
