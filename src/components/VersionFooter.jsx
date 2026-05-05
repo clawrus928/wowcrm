@@ -1,4 +1,5 @@
 import { T } from "../theme.js";
+import { useIsMobile } from "../utils.js";
 
 const RAW_SHA = import.meta.env.VITE_GIT_SHA || "";
 const RAW_TIME = import.meta.env.VITE_BUILD_TIME || "";
@@ -20,6 +21,8 @@ function formatBuildTime(iso) {
 const TIME = formatBuildTime(RAW_TIME);
 
 export function VersionFooter({ corner = "bottom-right" }) {
+  const isMobile = useIsMobile();
+
   const positionStyles =
     corner === "center"
       ? {
@@ -30,9 +33,13 @@ export function VersionFooter({ corner = "bottom-right" }) {
       : {
           position: "fixed",
           right: 8,
-          bottom: 6,
+          // mobile bottom nav is ~56px + safe-area inset
+          bottom: isMobile ? 62 : 6,
           zIndex: 50,
           pointerEvents: "none",
+          background: isMobile ? "rgba(255,255,255,0.7)" : "transparent",
+          padding: isMobile ? "1px 6px" : 0,
+          borderRadius: 4,
         };
 
   return (
@@ -43,7 +50,7 @@ export function VersionFooter({ corner = "bottom-right" }) {
         color: T.textTertiary,
         fontFamily: T.mono,
         letterSpacing: 0.3,
-        opacity: 0.7,
+        opacity: 0.85,
       }}
     >
       v {SHA}
