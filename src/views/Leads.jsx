@@ -11,6 +11,7 @@ import { DetailRow, DetailSection } from "../components/DetailRow.jsx";
 import {
   Field,
   MultiSelect,
+  SearchSelect,
   SelectInput,
   TextInput,
 } from "../components/fields.jsx";
@@ -336,10 +337,11 @@ function LeadFormDrawer({ initial, mode, channels, onClose, onSubmit }) {
       </Field>
       {form.source === "渠道方" && (
         <Field label="渠道方" required error={errors.channelId}>
-          <SelectInput
+          <SearchSelect
             value={form.channelId}
             onChange={(v) => set("channelId", v)}
-            placeholder="請選擇"
+            placeholder="搜尋渠道方"
+            emptyText="請先建立啟用的渠道方"
             options={activeChannels.map((c) => ({
               value: c.id,
               label: `${c.name}（${c.type}）`,

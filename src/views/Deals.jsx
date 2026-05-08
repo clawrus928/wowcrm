@@ -16,6 +16,7 @@ import {
   Field,
   MultiSelect,
   NumberInput,
+  SearchSelect,
   SelectInput,
   TextInput,
 } from "../components/fields.jsx";
@@ -325,10 +326,11 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
         <TextInput value={form.title} onChange={(v) => set("title", v)} />
       </Field>
       <Field label="關聯客戶" required error={errors.customerId}>
-        <SelectInput
+        <SearchSelect
           value={form.customerId}
           onChange={(v) => set("customerId", v)}
-          placeholder="請選擇"
+          placeholder="搜尋商戶名稱"
+          emptyText="請先建立客戶"
           options={customers.map((c) => ({ value: c.id, label: c.name }))}
         />
       </Field>
@@ -356,10 +358,11 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
         />
       </Field>
       <Field label="供應商">
-        <SelectInput
+        <SearchSelect
           value={form.supplierId}
           onChange={(v) => set("supplierId", v)}
-          placeholder="（可選）"
+          placeholder="搜尋供應商（可選）"
+          emptyText="請先建立啟用的供應商"
           options={(suppliers || [])
             .filter((sp) => sp.status === "啟用")
             .map((sp) => ({ value: sp.id, label: `${sp.name}（${sp.type}）` }))}

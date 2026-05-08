@@ -10,6 +10,7 @@ import { DetailRow, DetailSection } from "../components/DetailRow.jsx";
 import {
   Field,
   MultiSelect,
+  SearchSelect,
   SelectInput,
   TextInput,
 } from "../components/fields.jsx";
@@ -233,10 +234,11 @@ export function ContactFormDrawer({ initial, mode, customers, onClose, onSubmit 
         <TextInput value={form.name} onChange={(v) => set("name", v)} />
       </Field>
       <Field label="關聯客戶" required error={errors.customerId}>
-        <SelectInput
+        <SearchSelect
           value={form.customerId}
           onChange={(v) => set("customerId", v)}
-          placeholder="請選擇"
+          placeholder="搜尋商戶名稱"
+          emptyText="請先建立客戶"
           options={customers.map((c) => ({ value: c.id, label: c.name }))}
         />
       </Field>
