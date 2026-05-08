@@ -13,6 +13,7 @@ import {
   Field,
   MultiSelect,
   NumberInput,
+  SearchSelect,
   SelectInput,
   TextArea,
   TextInput,
@@ -330,18 +331,20 @@ function ContractFormDrawer({ initial, mode, customers, deals, onClose, onSubmit
         <TextInput value={form.title} onChange={(v) => set("title", v)} />
       </Field>
       <Field label="關聯客戶" required error={errors.customerId}>
-        <SelectInput
+        <SearchSelect
           value={form.customerId}
           onChange={(v) => setForm((f) => ({ ...f, customerId: v, dealId: null }))}
-          placeholder="請選擇"
+          placeholder="搜尋商戶名稱"
+          emptyText="請先建立客戶"
           options={customers.map((c) => ({ value: c.id, label: c.name }))}
         />
       </Field>
       <Field label="關聯商機">
-        <SelectInput
+        <SearchSelect
           value={form.dealId}
           onChange={(v) => set("dealId", v)}
-          placeholder="（可選）"
+          placeholder="搜尋商機名稱（可選）"
+          emptyText="此客戶下沒有商機"
           options={dealOptions.map((d) => ({ value: d.id, label: d.title }))}
         />
       </Field>
