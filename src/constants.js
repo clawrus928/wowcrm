@@ -31,6 +31,10 @@ export const CHANNEL_STATUSES = ["啟用", "停用"];
 
 export const SUPPLIER_TYPES = ["顧問合作方", "硬體供應商", "行銷合作方", "物流商", "安裝商", "其他"];
 export const SUPPLIER_STATUSES = ["啟用", "停用"];
+
+export const PRICING_CATEGORIES = ["顧問服務", "硬體設備", "行銷服務", "其他"];
+export const PRICING_BILLING = ["一次性", "月付", "季付", "年付"];
+export const PRICING_STATUSES = ["啟用", "停用"];
 export const CUSTOMER_STATUSES = ["未處理", "初訪", "跟進中", "報價"];
 export const DEAL_STATUSES = ["進行中", "已成交", "已流失"];
 export const CONTRACT_STATUSES = ["草稿", "審批中", "已簽署", "執行中", "已完成", "已終止"];

@@ -10,6 +10,7 @@ const ENTITY_KEYS = [
   "quotes",
   "channels",
   "suppliers",
+  "pricings",
 ];
 
 const EMPTY_STATE = {
@@ -21,6 +22,7 @@ const EMPTY_STATE = {
   quotes: [],
   channels: [],
   suppliers: [],
+  pricings: [],
 };
 
 export const DEMO_PASSWORD = "wowcrm";

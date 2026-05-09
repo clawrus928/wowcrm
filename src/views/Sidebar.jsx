@@ -11,6 +11,8 @@ export const NAV_ITEMS = [
   { id: "pipeline", label: "Pipeline", icon: "▦" },
   { id: "contracts", label: "合同", icon: "☰" },
   { id: "quotes", label: "報價單", icon: "☲" },
+  { section: "目錄" },
+  { id: "pricings", label: "收費項目", icon: "$" },
   { section: "合作夥伴" },
   { id: "channels", label: "渠道方", icon: "⊟" },
   { id: "suppliers", label: "供應商", icon: "⚒" },
