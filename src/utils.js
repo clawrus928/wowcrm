@@ -16,6 +16,25 @@ export function derivedAmount(record) {
   }
   return Number(record.amount) || 0;
 }
+
+// Effective amount for a deal: explicit `amount` if the user set one,
+// otherwise the sum of accepted quotes linked to this deal. Lets the user
+// leave the deal amount blank and let it follow whatever the customer
+// actually agreed to.
+export function effectiveDealAmount(deal, quotes) {
+  if (!deal) return 0;
+  if (deal.amount != null && deal.amount !== "" && Number(deal.amount) > 0) {
+    return Number(deal.amount);
+  }
+  const accepted = (quotes || []).filter(
+    (q) => q.dealId === deal.id && q.status === "已接受"
+  );
+  if (accepted.length === 0) {
+    // No accepted quote yet — fall back to the user-typed value (could be 0)
+    return Number(deal.amount) || 0;
+  }
+  return accepted.reduce((sum, q) => sum + derivedAmount(q), 0);
+}
 export const getProduct = (id) => PRODUCTS.find((p) => p.id === id);
 export const getRep = (id) => REPS.find((r) => r.id === id);
 export const getCustomer = (id, customers) => customers.find((c) => c.id === id);

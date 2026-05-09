@@ -44,6 +44,8 @@ export default function App() {
   const [customerSeed, setCustomerSeed] = useState(null);
   const [supplierSeed, setSupplierSeed] = useState(null);
   const [pricingSeed, setPricingSeed] = useState(null);
+  const [quoteSeed, setQuoteSeed] = useState(null);
+  const [contractSeed, setContractSeed] = useState(null);
 
   if (!store.currentUser) {
     return <LoginView onLogin={store.login} />;
@@ -72,6 +74,14 @@ export default function App() {
   const openSupplier = (id) => {
     setSupplierSeed({ mode: "detail", id });
     setView("suppliers");
+  };
+  const openQuote = (id) => {
+    setQuoteSeed({ mode: "detail", id });
+    setView("quotes");
+  };
+  const openContract = (id) => {
+    setContractSeed({ mode: "detail", id });
+    setView("contracts");
   };
 
   return (
@@ -190,13 +200,27 @@ export default function App() {
               drawerSeed={dealSeed}
               onConsumeSeed={() => setDealSeed(null)}
               onOpenSupplier={openSupplier}
+              onOpenQuote={openQuote}
+              onOpenContract={openContract}
             />
           )}
           {view === "pipeline" && (
             <PipelineView store={store} onOpenSupplier={openSupplier} />
           )}
-          {view === "contracts" && <ContractsView store={store} />}
-          {view === "quotes" && <QuotesView store={store} />}
+          {view === "contracts" && (
+            <ContractsView
+              store={store}
+              drawerSeed={contractSeed}
+              onConsumeSeed={() => setContractSeed(null)}
+            />
+          )}
+          {view === "quotes" && (
+            <QuotesView
+              store={store}
+              drawerSeed={quoteSeed}
+              onConsumeSeed={() => setQuoteSeed(null)}
+            />
+          )}
           {view === "channels" && (
             <ChannelsView
               store={store}

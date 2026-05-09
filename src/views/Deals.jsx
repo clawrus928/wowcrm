@@ -4,7 +4,7 @@ import {
   PRODUCTS,
   REPS,
 } from "../constants.js";
-import { fmt, getCustomer, getProduct, getRep } from "../utils.js";
+import { effectiveDealAmount, fmt, getCustomer, getProduct, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -26,15 +26,22 @@ const EMPTY_DEAL = {
   customerId: null,
   product: "consulting",
   stage: PRODUCTS[0].stages[0],
-  amount: 0,
+  amount: null,
   status: "進行中",
   supplierId: null,
   owner: null,
   collaborators: [],
 };
 
-export function DealsView({ store, drawerSeed, onConsumeSeed, onOpenSupplier }) {
-  const { deals, customers, suppliers, currentUser } = store;
+export function DealsView({
+  store,
+  drawerSeed,
+  onConsumeSeed,
+  onOpenSupplier,
+  onOpenQuote,
+  onOpenContract,
+}) {
+  const { deals, customers, suppliers, quotes, contracts, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fProduct, setFProduct] = useState("all");
   const [fStatus, setFStatus] = useState("all");
@@ -94,7 +101,27 @@ export function DealsView({ store, drawerSeed, onConsumeSeed, onOpenSupplier }) 
       key: "amount",
       label: "金額",
       mono: true,
-      render: (r) => <span style={{ fontWeight: 600, color: T.text }}>{fmt(r.amount)}</span>,
+      render: (r) => {
+        const eff = effectiveDealAmount(r, quotes);
+        const derived = (r.amount == null || r.amount === "" || r.amount === 0) && eff > 0;
+        return (
+          <span style={{ fontWeight: 600, color: T.text }}>
+            {fmt(eff)}
+            {derived && (
+              <span
+                style={{
+                  fontSize: 9,
+                  color: T.textTertiary,
+                  marginLeft: 4,
+                  fontFamily: T.font,
+                }}
+              >
+                (報價合計)
+              </span>
+            )}
+          </span>
+        );
+      },
     },
     {
       key: "status",
@@ -156,7 +183,11 @@ export function DealsView({ store, drawerSeed, onConsumeSeed, onOpenSupplier }) 
           deal={current}
           customers={customers}
           suppliers={suppliers}
+          quotes={quotes.filter((q) => q.dealId === current.id)}
+          contracts={contracts.filter((k) => k.dealId === current.id)}
           onOpenSupplier={onOpenSupplier}
+          onOpenQuote={onOpenQuote}
+          onOpenContract={onOpenContract}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
@@ -201,7 +232,11 @@ function DealDetailDrawer({
   deal,
   customers,
   suppliers,
+  quotes,
+  contracts,
   onOpenSupplier,
+  onOpenQuote,
+  onOpenContract,
   onClose,
   onEdit,
   onDelete,
@@ -211,6 +246,9 @@ function DealDetailDrawer({
   const supplier = deal.supplierId
     ? suppliers?.find((sp) => sp.id === deal.supplierId)
     : null;
+  const explicit =
+    deal.amount != null && deal.amount !== "" && Number(deal.amount) > 0;
+  const eff = effectiveDealAmount(deal, quotes);
   return (
     <Drawer
       open
@@ -243,8 +281,19 @@ function DealDetailDrawer({
             <span style={s.badge(product.color, `${product.color}14`)}>{deal.stage}</span>
           )}
         </DetailRow>
-        <DetailRow label="金額">
-          <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(deal.amount)}</span>
+        <DetailRow label={explicit ? "預估金額" : "金額"}>
+          <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(eff)}</span>
+          {!explicit && eff > 0 && (
+            <span
+              style={{
+                marginLeft: 6,
+                fontSize: 11,
+                color: T.textTertiary,
+              }}
+            >
+              （已接受報價合計）
+            </span>
+          )}
         </DetailRow>
         <DetailRow label="狀態">
           <StatusBadge status={deal.status} />
@@ -274,6 +323,108 @@ function DealDetailDrawer({
           <span style={{ fontFamily: T.mono }}>{deal.created}</span>
         </DetailRow>
       </DetailSection>
+
+      <DetailSection title={`報價單（${quotes?.length || 0}）`}>
+        {(quotes || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: T.textTertiary }}>暫無</div>
+        ) : (
+          quotes.map((q) => (
+            <button
+              key={q.id}
+              onClick={() => onOpenQuote?.(q.id)}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                border: `1px solid ${T.borderLight}`,
+                borderRadius: 5,
+                background: T.surface,
+                marginBottom: 6,
+                cursor: "pointer",
+                fontFamily: T.font,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                  {q.title}
+                </div>
+                <StatusBadge status={q.status} />
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: T.textTertiary,
+                  fontFamily: T.mono,
+                  marginTop: 2,
+                }}
+              >
+                {fmt((q.items || []).reduce(
+                  (s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+                  Number(q.amount) || 0
+                ))} · {q.created}
+              </div>
+            </button>
+          ))
+        )}
+      </DetailSection>
+
+      <DetailSection title={`合同（${contracts?.length || 0}）`}>
+        {(contracts || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: T.textTertiary }}>暫無</div>
+        ) : (
+          contracts.map((k) => (
+            <button
+              key={k.id}
+              onClick={() => onOpenContract?.(k.id)}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                border: `1px solid ${T.borderLight}`,
+                borderRadius: 5,
+                background: T.surface,
+                marginBottom: 6,
+                cursor: "pointer",
+                fontFamily: T.font,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                  {k.title}
+                </div>
+                <StatusBadge status={k.status} />
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: T.textTertiary,
+                  fontFamily: T.mono,
+                  marginTop: 2,
+                }}
+              >
+                {fmt((k.items || []).reduce(
+                  (s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+                  Number(k.amount) || 0
+                ))} · {k.signDate || k.created}
+              </div>
+            </button>
+          ))
+        )}
+      </DetailSection>
     </Drawer>
   );
 }
@@ -291,7 +442,8 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
     const e = {};
     if (!form.title?.trim()) e.title = "請輸入商機名稱";
     if (!form.customerId) e.customerId = "請選擇關聯客戶";
-    if (form.amount == null || form.amount < 0) e.amount = "請輸入有效金額";
+    if (form.amount != null && form.amount !== "" && form.amount < 0)
+      e.amount = "金額不可為負數";
     if (!stages.includes(form.stage)) e.stage = "請選擇階段";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -347,7 +499,11 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
       <Field label="階段" error={errors.stage}>
         <SelectInput value={form.stage} onChange={(v) => set("stage", v)} options={stages} />
       </Field>
-      <Field label="金額（MOP）" required error={errors.amount}>
+      <Field
+        label="預估金額（MOP）"
+        hint="留空時自動取「已接受報價」的合計金額"
+        error={errors.amount}
+      >
         <NumberInput value={form.amount} onChange={(v) => set("amount", v)} />
       </Field>
       <Field label="狀態">
