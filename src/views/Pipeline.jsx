@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { PRODUCTS } from "../constants.js";
-import { fmt, getCustomer, getRep } from "../utils.js";
+import { effectiveDealAmount, fmt, getCustomer, getRep } from "../utils.js";
 import { T } from "../theme.js";
 
 export function PipelineView({ store, onOpenSupplier }) {
-  const { deals, customers, suppliers } = store;
+  const { deals, customers, suppliers, quotes } = store;
   const [activeProduct, setActiveProduct] = useState(PRODUCTS[0].id);
   const [dragId, setDragId] = useState(null);
 
@@ -25,7 +25,10 @@ export function PipelineView({ store, onOpenSupplier }) {
     }
   };
 
-  const totalAmount = pipelineDeals.reduce((acc, d) => acc + d.amount, 0);
+  const totalAmount = pipelineDeals.reduce(
+    (acc, d) => acc + effectiveDealAmount(d, quotes),
+    0
+  );
   const totalCount = pipelineDeals.length;
 
   return (
@@ -131,7 +134,10 @@ export function PipelineView({ store, onOpenSupplier }) {
       >
         {stages.map((stage) => {
           const stageDeals = pipelineDeals.filter((d) => d.stage === stage);
-          const stageTotal = stageDeals.reduce((acc, d) => acc + d.amount, 0);
+          const stageTotal = stageDeals.reduce(
+            (acc, d) => acc + effectiveDealAmount(d, quotes),
+            0
+          );
           return (
             <PipelineColumn
               key={stage}
@@ -151,6 +157,7 @@ export function PipelineView({ store, onOpenSupplier }) {
                   alert(err.message || "移動失敗");
                 }
               }}
+              quotes={quotes}
               onOpenSupplier={onOpenSupplier}
             />
           );
@@ -165,6 +172,7 @@ function PipelineColumn({
   deals,
   customers,
   suppliers,
+  quotes,
   product,
   stageTotal,
   onDrop,
@@ -258,6 +266,7 @@ function PipelineColumn({
             deal={d}
             customers={customers}
             suppliers={suppliers}
+            quotes={quotes}
             product={product}
             onDragStart={() => onDragId(d.id)}
             allStages={allStages}
@@ -287,6 +296,7 @@ function PipelineCard({
   deal,
   customers,
   suppliers,
+  quotes,
   product,
   onDragStart,
   allStages,
@@ -351,7 +361,7 @@ function PipelineCard({
           marginBottom: 6,
         }}
       >
-        {fmt(deal.amount)}
+        {fmt(effectiveDealAmount(deal, quotes))}
       </div>
       {supplier && (
         <button

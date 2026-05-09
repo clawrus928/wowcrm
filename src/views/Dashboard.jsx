@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { PRODUCTS, REPS } from "../constants.js";
-import { fmt, getRep } from "../utils.js";
+import { effectiveDealAmount, fmt, getRep } from "../utils.js";
 import { T } from "../theme.js";
 
 function Card({ title, children, accent }) {
@@ -111,7 +111,7 @@ export function DashboardView({ store }) {
       return {
         ...p,
         count: ds.length,
-        amount: ds.reduce((s, d) => s + d.amount, 0),
+        amount: ds.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0),
       };
     });
 
@@ -120,7 +120,7 @@ export function DashboardView({ store }) {
       return {
         ...r,
         count: ds.length,
-        amount: ds.reduce((s, d) => s + d.amount, 0),
+        amount: ds.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0),
       };
     }).sort((a, b) => b.amount - a.amount);
 
@@ -131,8 +131,8 @@ export function DashboardView({ store }) {
       ? Math.round((convertedLeads / leads.length) * 100)
       : 0;
 
-    const totalPipeline = activeDeals.reduce((s, d) => s + d.amount, 0);
-    const totalWon = wonDeals.reduce((s, d) => s + d.amount, 0);
+    const totalPipeline = activeDeals.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0);
+    const totalWon = wonDeals.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0);
 
     const channelSummary = (channels || [])
       .map((ch) => {
@@ -146,7 +146,7 @@ export function DashboardView({ store }) {
         const chDeals = deals.filter((d) => chCustIds.has(d.customerId));
         const won = chDeals
           .filter((d) => d.status === "已成交")
-          .reduce((s, d) => s + d.amount, 0);
+          .reduce((s, d) => s + effectiveDealAmount(d, quotes), 0);
         const chContracts = (contracts || []).filter((k) =>
           chCustIds.has(k.customerId)
         );
@@ -172,8 +172,8 @@ export function DashboardView({ store }) {
         return {
           ...sp,
           dealCount: spDeals.length,
-          activeAmount: active.reduce((s, d) => s + d.amount, 0),
-          wonAmount: won.reduce((s, d) => s + d.amount, 0),
+          activeAmount: active.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0),
+          wonAmount: won.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0),
         };
       })
       .filter((sp) => sp.dealCount > 0)
@@ -192,7 +192,7 @@ export function DashboardView({ store }) {
       totalPipeline,
       totalWon,
     };
-  }, [leads, customers, deals, channels, suppliers]);
+  }, [leads, customers, deals, contracts, quotes, channels, suppliers]);
 
   const maxOwnerAmount = Math.max(1, ...stats.ownerSummary.map((o) => o.amount));
 

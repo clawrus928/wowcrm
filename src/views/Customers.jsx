@@ -7,7 +7,7 @@ import {
 } from "../constants.js";
 import { ContactFormDrawer } from "./Contacts.jsx";
 import { DealFormDrawer } from "./Deals.jsx";
-import { derivedAmount, fmt, getRep } from "../utils.js";
+import { derivedAmount, effectiveDealAmount, fmt, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
@@ -102,7 +102,7 @@ export function CustomersView({
       render: (r) => {
         const won = deals
           .filter((d) => d.customerId === r.id && d.status === "已成交")
-          .reduce((sum, d) => sum + (d.amount || 0), 0);
+          .reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
         return won > 0 ? (
           <span style={{ fontWeight: 600, color: "#059669" }}>{fmt(won)}</span>
         ) : (
@@ -332,7 +332,7 @@ function CustomerDetailDrawer({
           {(() => {
             const won = deals
               .filter((d) => d.status === "已成交")
-              .reduce((sum, d) => sum + (d.amount || 0), 0);
+              .reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
             return (
               <>
                 <div
@@ -489,7 +489,7 @@ function CustomerDetailDrawer({
             >
               <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{d.title}</div>
               <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: T.mono }}>
-                {fmt(d.amount)} · {d.stage}
+                {fmt(effectiveDealAmount(d, quotes))} · {d.stage}
               </div>
             </button>
           ))

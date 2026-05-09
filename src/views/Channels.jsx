@@ -4,7 +4,7 @@ import {
   CHANNEL_TYPES,
   REPS,
 } from "../constants.js";
-import { fmt, getRep } from "../utils.js";
+import { effectiveDealAmount, fmt, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -30,7 +30,7 @@ const EMPTY_CHANNEL = {
   owner: null,
 };
 
-function getChannelStats(channel, leads, customers, deals, contracts) {
+function getChannelStats(channel, leads, customers, deals, contracts, quotes) {
   const channelLeads = leads.filter((l) => l.channelId === channel.id);
   const channelCustomerIds = new Set(
     customers.filter((c) => c.channelId === channel.id).map((c) => c.id)
@@ -43,10 +43,10 @@ function getChannelStats(channel, leads, customers, deals, contracts) {
   const channelCustomers = customers.filter((c) => channelCustomerIds.has(c.id));
   const channelDeals = deals.filter((d) => channelCustomerIds.has(d.customerId));
   const wonDeals = channelDeals.filter((d) => d.status === "已成交");
-  const wonAmount = wonDeals.reduce((sum, d) => sum + d.amount, 0);
+  const wonAmount = wonDeals.reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
   const activeAmount = channelDeals
     .filter((d) => d.status === "進行中")
-    .reduce((sum, d) => sum + d.amount, 0);
+    .reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
 
   const channelContracts = (contracts || []).filter((k) =>
     channelCustomerIds.has(k.customerId)
@@ -69,7 +69,7 @@ function getChannelStats(channel, leads, customers, deals, contracts) {
 }
 
 export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onOpenCustomer }) {
-  const { channels, leads, customers, deals, contracts, currentUser } = store;
+  const { channels, leads, customers, deals, contracts, quotes, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [fType, setFType] = useState("all");
@@ -124,7 +124,7 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
       label: "成交金額",
       mono: true,
       render: (r) => {
-        const stats = getChannelStats(r, leads, customers, deals, contracts);
+        const stats = getChannelStats(r, leads, customers, deals, contracts, quotes);
         return stats.wonAmount > 0 ? (
           <span style={{ fontWeight: 600, color: "#059669" }}>
             {fmt(stats.wonAmount)}
@@ -208,6 +208,7 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
           customers={customers}
           deals={deals}
           contracts={contracts}
+          quotes={quotes}
           onOpenLead={onOpenLead}
           onOpenCustomer={onOpenCustomer}
           onClose={() => setDrawer(null)}
@@ -283,13 +284,14 @@ function ChannelDetailDrawer({
   customers,
   deals,
   contracts,
+  quotes,
   onOpenLead,
   onOpenCustomer,
   onClose,
   onEdit,
   onDelete,
 }) {
-  const stats = getChannelStats(channel, leads, customers, deals, contracts);
+  const stats = getChannelStats(channel, leads, customers, deals, contracts, quotes);
   const conversionRate =
     stats.leadCount > 0
       ? Math.round((stats.customerCount / stats.leadCount) * 100)

@@ -5,7 +5,7 @@ import {
   SUPPLIER_STATUSES,
   SUPPLIER_TYPES,
 } from "../constants.js";
-import { fmt, getCustomer, getProduct, getRep } from "../utils.js";
+import { effectiveDealAmount, fmt, getCustomer, getProduct, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -32,13 +32,13 @@ const EMPTY_SUPPLIER = {
   owner: null,
 };
 
-function getSupplierStats(supplier, deals) {
+function getSupplierStats(supplier, deals, quotes) {
   const myDeals = deals.filter((d) => d.supplierId === supplier.id);
   const active = myDeals.filter((d) => d.status === "進行中");
   const won = myDeals.filter((d) => d.status === "已成交");
   const lost = myDeals.filter((d) => d.status === "已流失");
-  const activeAmount = active.reduce((sum, d) => sum + d.amount, 0);
-  const wonAmount = won.reduce((sum, d) => sum + d.amount, 0);
+  const activeAmount = active.reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
+  const wonAmount = won.reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
   return {
     deals: myDeals,
     active,
@@ -55,7 +55,7 @@ export function SuppliersView({
   onConsumeSeed,
   onOpenDeal,
 }) {
-  const { suppliers, deals, customers, currentUser } = store;
+  const { suppliers, deals, customers, quotes, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [fType, setFType] = useState("all");
@@ -101,7 +101,7 @@ export function SuppliersView({
       label: "進行中",
       mono: true,
       render: (r) => {
-        const st = getSupplierStats(r, deals);
+        const st = getSupplierStats(r, deals, quotes);
         return st.activeAmount > 0 ? (
           <span style={{ fontWeight: 600, color: "#2563EB" }}>
             {fmt(st.activeAmount)}
@@ -116,7 +116,7 @@ export function SuppliersView({
       label: "已成交",
       mono: true,
       render: (r) => {
-        const st = getSupplierStats(r, deals);
+        const st = getSupplierStats(r, deals, quotes);
         return st.wonAmount > 0 ? (
           <span style={{ fontWeight: 600, color: "#059669" }}>
             {fmt(st.wonAmount)}
@@ -279,7 +279,7 @@ function SupplierDetailDrawer({
   onEdit,
   onDelete,
 }) {
-  const stats = getSupplierStats(supplier, deals);
+  const stats = getSupplierStats(supplier, deals, quotes);
 
   // 階段分佈：進行中商機按產品線 → 階段
   const byProduct = PRODUCTS.map((p) => {
@@ -287,7 +287,7 @@ function SupplierDetailDrawer({
     return {
       ...p,
       deals: dealsInProduct,
-      total: dealsInProduct.reduce((sum, d) => sum + d.amount, 0),
+      total: dealsInProduct.reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0),
     };
   }).filter((p) => p.deals.length > 0);
 
@@ -435,7 +435,7 @@ function SupplierDetailDrawer({
                         color: p.color,
                       }}
                     >
-                      {fmt(d.amount)}
+                      {fmt(effectiveDealAmount(d, quotes))}
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: T.textTertiary }}>
@@ -488,7 +488,7 @@ function SupplierDetailDrawer({
                       fontFamily: T.mono,
                     }}
                   >
-                    {fmt(d.amount)}
+                    {fmt(effectiveDealAmount(d, quotes))}
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: T.textTertiary }}>

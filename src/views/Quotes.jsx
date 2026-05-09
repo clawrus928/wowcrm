@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { QUOTE_STATUSES, REPS } from "../constants.js";
+import { PRODUCTS, QUOTE_STATUSES, REPS } from "../constants.js";
 import { fmt, getCustomer, getDeal, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
@@ -58,12 +58,17 @@ function quoteAmount(q) {
   return q.amount || 0;
 }
 
-export function QuotesView({ store }) {
+export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
   const { quotes, customers, deals, pricings, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
+
+  if (drawerSeed && !drawer) {
+    setDrawer(drawerSeed);
+    onConsumeSeed?.();
+  }
 
   const filtered = useMemo(() => {
     let d = quotes;
@@ -193,12 +198,33 @@ export function QuotesView({ store }) {
           onClose={() => setDrawer(null)}
           onSubmit={async (data) => {
             try {
+              const wasAccepted = drawer.mode === "edit" && current?.status === "已接受";
+              const nowAccepted = data.status === "已接受";
+              let saved;
               if (drawer.mode === "edit") {
-                await store.updateItem("quotes", current.id, data);
-                setDrawer({ mode: "detail", id: current.id });
+                saved = await store.updateItem("quotes", current.id, data);
               } else {
-                const created = await store.addItem("quotes", data);
-                setDrawer({ mode: "detail", id: created.id });
+                saved = await store.addItem("quotes", data);
+              }
+              setDrawer({ mode: "detail", id: saved.id });
+
+              // Quote just transitioned to 已接受 → offer to advance the deal stage
+              if (!wasAccepted && nowAccepted && saved.dealId) {
+                const deal = deals.find((d) => d.id === saved.dealId);
+                if (deal && deal.status === "進行中") {
+                  const product = PRODUCTS.find((p) => p.id === deal.product);
+                  const stages = product?.stages || [];
+                  const idx = stages.indexOf(deal.stage);
+                  const next = idx >= 0 && idx < stages.length - 1 ? stages[idx + 1] : null;
+                  if (
+                    next &&
+                    confirm(
+                      `報價已接受 ✅\n\n要把商機「${deal.title}」從「${deal.stage}」推進到「${next}」嗎？`
+                    )
+                  ) {
+                    await store.moveDealStage(deal.id, next);
+                  }
+                }
               }
             } catch (err) {
               alert(err.message || "儲存失敗");

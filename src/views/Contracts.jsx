@@ -62,12 +62,17 @@ function contractAmount(k) {
   return k.amount || 0;
 }
 
-export function ContractsView({ store }) {
+export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
   const { contracts, customers, deals, pricings, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
+
+  if (drawerSeed && !drawer) {
+    setDrawer(drawerSeed);
+    onConsumeSeed?.();
+  }
 
   const filtered = useMemo(() => {
     let d = contracts;
