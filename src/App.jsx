@@ -14,6 +14,7 @@ import { PipelineView } from "./views/Pipeline.jsx";
 import { DashboardView } from "./views/Dashboard.jsx";
 import { ChannelsView } from "./views/Channels.jsx";
 import { SuppliersView } from "./views/Suppliers.jsx";
+import { PricingsView } from "./views/Pricings.jsx";
 import { LoginView } from "./views/Login.jsx";
 import { VersionFooter } from "./components/VersionFooter.jsx";
 
@@ -28,6 +29,7 @@ const VIEW_TITLES = {
   quotes: "報價單",
   channels: "渠道方",
   suppliers: "供應商",
+  pricings: "收費項目",
 };
 
 export default function App() {
@@ -41,6 +43,7 @@ export default function App() {
   const [leadSeed, setLeadSeed] = useState(null);
   const [customerSeed, setCustomerSeed] = useState(null);
   const [supplierSeed, setSupplierSeed] = useState(null);
+  const [pricingSeed, setPricingSeed] = useState(null);
 
   if (!store.currentUser) {
     return <LoginView onLogin={store.login} />;
@@ -209,6 +212,13 @@ export default function App() {
               drawerSeed={supplierSeed}
               onConsumeSeed={() => setSupplierSeed(null)}
               onOpenDeal={openDeal}
+            />
+          )}
+          {view === "pricings" && (
+            <PricingsView
+              store={store}
+              drawerSeed={pricingSeed}
+              onConsumeSeed={() => setPricingSeed(null)}
             />
           )}
         </div>

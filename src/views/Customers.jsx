@@ -7,7 +7,7 @@ import {
 } from "../constants.js";
 import { ContactFormDrawer } from "./Contacts.jsx";
 import { DealFormDrawer } from "./Deals.jsx";
-import { fmt, getRep } from "../utils.js";
+import { derivedAmount, fmt, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
@@ -512,7 +512,7 @@ function CustomerDetailDrawer({
             >
               <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{k.title}</div>
               <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: T.mono }}>
-                {fmt(k.amount)} · {k.status}
+                {fmt(derivedAmount(k))} · {k.status}
               </div>
             </div>
           ))
@@ -535,7 +535,7 @@ function CustomerDetailDrawer({
             >
               <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{q.title}</div>
               <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: T.mono }}>
-                {fmt(q.amount)} · {q.status}
+                {fmt(derivedAmount(q))} · {q.status}
               </div>
             </div>
           ))

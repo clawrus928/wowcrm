@@ -12,25 +12,54 @@ import {
   DateInput,
   Field,
   MultiSelect,
-  NumberInput,
   SearchSelect,
   SelectInput,
   TextInput,
 } from "../components/fields.jsx";
+import {
+  emptyLineItem,
+  LineItemsEditor,
+  totalsFor,
+} from "../components/LineItemsEditor.jsx";
 
 const EMPTY_QUOTE = {
   title: "",
   customerId: null,
   dealId: null,
-  amount: 0,
+  items: [],
   status: "草稿",
   validUntil: null,
   owner: null,
   collaborators: [],
 };
 
+// Old quotes (created before line items existed) only have a flat `amount`.
+// Treat them as a single line item so the form works.
+function normalizeQuote(q) {
+  if (q.items && q.items.length > 0) return q;
+  if (q.amount && q.amount > 0) {
+    return {
+      ...q,
+      items: [
+        {
+          ...emptyLineItem(),
+          name: q.title || "",
+          quantity: 1,
+          unitPrice: q.amount,
+        },
+      ],
+    };
+  }
+  return { ...q, items: [] };
+}
+
+function quoteAmount(q) {
+  if (q.items && q.items.length > 0) return totalsFor(q.items).total;
+  return q.amount || 0;
+}
+
 export function QuotesView({ store }) {
-  const { quotes, customers, deals, currentUser } = store;
+  const { quotes, customers, deals, pricings, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -81,7 +110,7 @@ export function QuotesView({ store }) {
       key: "amount",
       label: "報價金額",
       mono: true,
-      render: (r) => <span style={{ fontWeight: 600, color: T.text }}>{fmt(r.amount)}</span>,
+      render: (r) => <span style={{ fontWeight: 600, color: T.text }}>{fmt(quoteAmount(r))}</span>,
     },
     {
       key: "status",
@@ -133,7 +162,7 @@ export function QuotesView({ store }) {
 
       {drawer?.mode === "detail" && current && (
         <QuoteDetailDrawer
-          quote={current}
+          quote={normalizeQuote(current)}
           customers={customers}
           deals={deals}
           onClose={() => setDrawer(null)}
@@ -152,10 +181,15 @@ export function QuotesView({ store }) {
 
       {(drawer?.mode === "create" || drawer?.mode === "edit") && (
         <QuoteFormDrawer
-          initial={drawer.mode === "edit" ? current : { ...EMPTY_QUOTE, owner: currentUser }}
+          initial={
+            drawer.mode === "edit"
+              ? normalizeQuote(current)
+              : { ...EMPTY_QUOTE, owner: currentUser }
+          }
           mode={drawer.mode}
           customers={customers}
           deals={deals}
+          pricings={pricings}
           onClose={() => setDrawer(null)}
           onSubmit={async (data) => {
             try {
@@ -179,6 +213,8 @@ export function QuotesView({ store }) {
 function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete }) {
   const cust = getCustomer(quote.customerId, customers);
   const deal = getDeal(quote.dealId, deals);
+  const items = quote.items || [];
+  const { total, totalCost, margin } = totalsFor(items);
   return (
     <Drawer
       open
@@ -200,9 +236,6 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
         <DetailRow label="報價單名稱">{quote.title}</DetailRow>
         <DetailRow label="關聯客戶">{cust?.name}</DetailRow>
         <DetailRow label="關聯商機">{deal?.title}</DetailRow>
-        <DetailRow label="金額">
-          <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(quote.amount)}</span>
-        </DetailRow>
         <DetailRow label="狀態">
           <StatusBadge status={quote.status} />
         </DetailRow>
@@ -210,6 +243,112 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
           <span style={{ fontFamily: T.mono }}>{quote.validUntil}</span>
         </DetailRow>
       </DetailSection>
+
+      <DetailSection title={`收費項目（${items.length}）`}>
+        {items.length === 0 ? (
+          <div style={{ fontSize: 12, color: T.textTertiary }}>暫無項目</div>
+        ) : (
+          items.map((it, idx) => (
+            <div
+              key={it.id || idx}
+              style={{
+                padding: "8px 10px",
+                border: `1px solid ${T.borderLight}`,
+                borderLeft: `3px solid ${T.accent}40`,
+                borderRadius: T.radiusSm,
+                marginBottom: 6,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                {it.name || "（未命名）"}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: 3,
+                  fontSize: 12,
+                  color: T.textSecondary,
+                  fontFamily: T.mono,
+                }}
+              >
+                <span>
+                  {it.quantity} × {fmt(it.unitPrice)}
+                  {it.billingType && it.billingType !== "一次性" && (
+                    <span style={{ marginLeft: 6, fontSize: 10, color: T.textTertiary }}>
+                      / {it.billingType}
+                    </span>
+                  )}
+                </span>
+                <span style={{ fontWeight: 700, color: T.text }}>
+                  {fmt((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0))}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+        <div
+          style={{
+            marginTop: 8,
+            padding: "10px 12px",
+            background: T.surfaceAlt,
+            borderRadius: T.radiusSm,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+          }}
+        >
+          <span style={{ fontSize: 12, color: T.textSecondary }}>合計</span>
+          <span
+            style={{
+              fontFamily: T.mono,
+              fontSize: 18,
+              fontWeight: 800,
+              color: T.accent,
+            }}
+          >
+            {fmt(total)}
+          </span>
+        </div>
+      </DetailSection>
+
+      <div
+        style={{
+          marginTop: 18,
+          padding: "10px 12px",
+          background: "#FEF3C7",
+          border: "1px solid #FCD34D",
+          borderRadius: T.radiusSm,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "#92400E",
+            letterSpacing: 1.5,
+            textTransform: "uppercase",
+            marginBottom: 6,
+          }}
+        >
+          🔒 內部 — 成本 / 毛利
+        </div>
+        <DetailRow label="總成本">
+          <span style={{ fontFamily: T.mono }}>{fmt(totalCost)}</span>
+        </DetailRow>
+        <DetailRow label="毛利">
+          <span
+            style={{
+              fontFamily: T.mono,
+              fontWeight: 700,
+              color: margin > 0 ? "#059669" : "#DC2626",
+            }}
+          >
+            {fmt(margin)} ({total > 0 ? Math.round((margin / total) * 100) : 0}%)
+          </span>
+        </DetailRow>
+      </div>
+
       <DetailSection title="負責人">
         <DetailRow label="負責人">{getRep(quote.owner)?.name}</DetailRow>
         <DetailRow label="協作人">
@@ -225,7 +364,7 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
   );
 }
 
-function QuoteFormDrawer({ initial, mode, customers, deals, onClose, onSubmit }) {
+function QuoteFormDrawer({ initial, mode, customers, deals, pricings, onClose, onSubmit }) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -239,7 +378,8 @@ function QuoteFormDrawer({ initial, mode, customers, deals, onClose, onSubmit })
     const e = {};
     if (!form.title?.trim()) e.title = "請輸入報價單名稱";
     if (!form.customerId) e.customerId = "請選擇客戶";
-    if (form.amount == null || form.amount < 0) e.amount = "請輸入有效金額";
+    if (!form.items || form.items.length === 0)
+      e.items = "請至少加入一個收費項目";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -290,8 +430,12 @@ function QuoteFormDrawer({ initial, mode, customers, deals, onClose, onSubmit })
           options={dealOptions.map((d) => ({ value: d.id, label: d.title }))}
         />
       </Field>
-      <Field label="金額（MOP）" required error={errors.amount}>
-        <NumberInput value={form.amount} onChange={(v) => set("amount", v)} />
+      <Field label="收費項目" required error={errors.items}>
+        <LineItemsEditor
+          items={form.items}
+          onChange={(items) => set("items", items)}
+          pricings={pricings}
+        />
       </Field>
       <Field label="狀態">
         <SelectInput

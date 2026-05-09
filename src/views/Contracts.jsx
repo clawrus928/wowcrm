@@ -18,12 +18,17 @@ import {
   TextArea,
   TextInput,
 } from "../components/fields.jsx";
+import {
+  emptyLineItem,
+  LineItemsEditor,
+  totalsFor,
+} from "../components/LineItemsEditor.jsx";
 
 const EMPTY_CONTRACT = {
   title: "",
   customerId: null,
   dealId: null,
-  amount: 0,
+  items: [],
   status: "草稿",
   signDate: null,
   startDate: null,
@@ -34,8 +39,31 @@ const EMPTY_CONTRACT = {
   collaborators: [],
 };
 
+function normalizeContract(k) {
+  if (k.items && k.items.length > 0) return k;
+  if (k.amount && k.amount > 0) {
+    return {
+      ...k,
+      items: [
+        {
+          ...emptyLineItem(),
+          name: k.title || "",
+          quantity: 1,
+          unitPrice: k.amount,
+        },
+      ],
+    };
+  }
+  return { ...k, items: [] };
+}
+
+function contractAmount(k) {
+  if (k.items && k.items.length > 0) return totalsFor(k.items).total;
+  return k.amount || 0;
+}
+
 export function ContractsView({ store }) {
-  const { contracts, customers, deals, currentUser } = store;
+  const { contracts, customers, deals, pricings, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -86,7 +114,7 @@ export function ContractsView({ store }) {
       key: "amount",
       label: "合同金額",
       mono: true,
-      render: (r) => <span style={{ fontWeight: 600, color: T.text }}>{fmt(r.amount)}</span>,
+      render: (r) => <span style={{ fontWeight: 600, color: T.text }}>{fmt(contractAmount(r))}</span>,
     },
     {
       key: "status",
@@ -149,7 +177,7 @@ export function ContractsView({ store }) {
 
       {drawer?.mode === "detail" && current && (
         <ContractDetailDrawer
-          contract={current}
+          contract={normalizeContract(current)}
           customers={customers}
           deals={deals}
           onClose={() => setDrawer(null)}
@@ -168,10 +196,15 @@ export function ContractsView({ store }) {
 
       {(drawer?.mode === "create" || drawer?.mode === "edit") && (
         <ContractFormDrawer
-          initial={drawer.mode === "edit" ? current : { ...EMPTY_CONTRACT, owner: currentUser }}
+          initial={
+            drawer.mode === "edit"
+              ? normalizeContract(current)
+              : { ...EMPTY_CONTRACT, owner: currentUser }
+          }
           mode={drawer.mode}
           customers={customers}
           deals={deals}
+          pricings={pricings}
           onClose={() => setDrawer(null)}
           onSubmit={async (data) => {
             try {
@@ -195,6 +228,10 @@ export function ContractsView({ store }) {
 function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onDelete }) {
   const cust = getCustomer(contract.customerId, customers);
   const deal = getDeal(contract.dealId, deals);
+  const items = contract.items || [];
+  const { total, totalCost, margin } = totalsFor(items);
+  const commission = Number(contract.internalCommissionAmount) || 0;
+  const netMargin = margin - commission;
   return (
     <Drawer
       open
@@ -216,13 +253,79 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
         <DetailRow label="合同名稱">{contract.title}</DetailRow>
         <DetailRow label="關聯客戶">{cust?.name}</DetailRow>
         <DetailRow label="關聯商機">{deal?.title}</DetailRow>
-        <DetailRow label="金額">
-          <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(contract.amount)}</span>
-        </DetailRow>
         <DetailRow label="狀態">
           <StatusBadge status={contract.status} />
         </DetailRow>
       </DetailSection>
+
+      <DetailSection title={`收費項目（${items.length}）`}>
+        {items.length === 0 ? (
+          <div style={{ fontSize: 12, color: T.textTertiary }}>暫無項目</div>
+        ) : (
+          items.map((it, idx) => (
+            <div
+              key={it.id || idx}
+              style={{
+                padding: "8px 10px",
+                border: `1px solid ${T.borderLight}`,
+                borderLeft: `3px solid ${T.accent}40`,
+                borderRadius: T.radiusSm,
+                marginBottom: 6,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                {it.name || "（未命名）"}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: 3,
+                  fontSize: 12,
+                  color: T.textSecondary,
+                  fontFamily: T.mono,
+                }}
+              >
+                <span>
+                  {it.quantity} × {fmt(it.unitPrice)}
+                  {it.billingType && it.billingType !== "一次性" && (
+                    <span style={{ marginLeft: 6, fontSize: 10, color: T.textTertiary }}>
+                      / {it.billingType}
+                    </span>
+                  )}
+                </span>
+                <span style={{ fontWeight: 700, color: T.text }}>
+                  {fmt((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0))}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+        <div
+          style={{
+            marginTop: 8,
+            padding: "10px 12px",
+            background: T.surfaceAlt,
+            borderRadius: T.radiusSm,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+          }}
+        >
+          <span style={{ fontSize: 12, color: T.textSecondary }}>合計</span>
+          <span
+            style={{
+              fontFamily: T.mono,
+              fontSize: 18,
+              fontWeight: 800,
+              color: T.accent,
+            }}
+          >
+            {fmt(total)}
+          </span>
+        </div>
+      </DetailSection>
+
       <DetailSection title="日期">
         <DetailRow label="簽約日期">
           <span style={{ fontFamily: T.mono }}>{contract.signDate}</span>
@@ -266,9 +369,34 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
         >
           🔒 內部資訊（僅內部可見）
         </div>
+        <DetailRow label="總成本">
+          <span style={{ fontFamily: T.mono }}>{fmt(totalCost)}</span>
+        </DetailRow>
+        <DetailRow label="毛利">
+          <span
+            style={{
+              fontFamily: T.mono,
+              fontWeight: 700,
+              color: margin > 0 ? "#059669" : "#DC2626",
+            }}
+          >
+            {fmt(margin)} ({total > 0 ? Math.round((margin / total) * 100) : 0}%)
+          </span>
+        </DetailRow>
         <DetailRow label="內部佣金">
           <span style={{ fontFamily: T.mono, fontWeight: 700, color: "#92400E" }}>
-            {fmt(contract.internalCommissionAmount || 0)}
+            {fmt(commission)}
+          </span>
+        </DetailRow>
+        <DetailRow label="淨利（毛利 − 佣金）">
+          <span
+            style={{
+              fontFamily: T.mono,
+              fontWeight: 700,
+              color: netMargin > 0 ? "#059669" : "#DC2626",
+            }}
+          >
+            {fmt(netMargin)}
           </span>
         </DetailRow>
         {contract.internalNotes && (
@@ -281,7 +409,7 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
   );
 }
 
-function ContractFormDrawer({ initial, mode, customers, deals, onClose, onSubmit }) {
+function ContractFormDrawer({ initial, mode, customers, deals, pricings, onClose, onSubmit }) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -295,7 +423,8 @@ function ContractFormDrawer({ initial, mode, customers, deals, onClose, onSubmit
     const e = {};
     if (!form.title?.trim()) e.title = "請輸入合同名稱";
     if (!form.customerId) e.customerId = "請選擇客戶";
-    if (form.amount == null || form.amount < 0) e.amount = "請輸入有效金額";
+    if (!form.items || form.items.length === 0)
+      e.items = "請至少加入一個收費項目";
     if (form.startDate && form.endDate && form.endDate < form.startDate)
       e.endDate = "到期日期不可早於開始日期";
     setErrors(e);
@@ -348,8 +477,12 @@ function ContractFormDrawer({ initial, mode, customers, deals, onClose, onSubmit
           options={dealOptions.map((d) => ({ value: d.id, label: d.title }))}
         />
       </Field>
-      <Field label="金額（MOP）" required error={errors.amount}>
-        <NumberInput value={form.amount} onChange={(v) => set("amount", v)} />
+      <Field label="收費項目" required error={errors.items}>
+        <LineItemsEditor
+          items={form.items}
+          onChange={(items) => set("items", items)}
+          pricings={pricings}
+        />
       </Field>
       <Field label="狀態">
         <SelectInput

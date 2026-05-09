@@ -15,6 +15,7 @@ export function MobileBottomNav({ active, onChange }) {
     { id: "deals", label: "商機", icon: "◈" },
     { id: "contracts", label: "合同", icon: "☰" },
     { id: "quotes", label: "報價單", icon: "☲" },
+    { id: "pricings", label: "收費項目", icon: "$" },
     { id: "channels", label: "渠道方", icon: "⊟" },
     { id: "suppliers", label: "供應商", icon: "⚒" },
   ];
@@ -99,7 +100,7 @@ export function MobileBottomNav({ active, onChange }) {
               color:
                 active === v.id ||
                 (v.id === "more" &&
-                  ["contacts", "deals", "contracts", "quotes", "channels", "suppliers"].includes(active))
+                  ["contacts", "deals", "contracts", "quotes", "pricings", "channels", "suppliers"].includes(active))
                   ? T.accent
                   : T.textTertiary,
               padding: "4px 10px",

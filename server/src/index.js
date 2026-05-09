@@ -37,6 +37,7 @@ const ID_PREFIX = {
   quotes: "q",
   channels: "ch",
   suppliers: "sp",
+  pricings: "pr",
 };
 
 function newId(entity) {
