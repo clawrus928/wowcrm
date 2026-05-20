@@ -365,10 +365,13 @@ function DealDetailDrawer({
                   marginTop: 2,
                 }}
               >
-                {fmt((q.items || []).reduce(
-                  (s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
-                  Number(q.amount) || 0
-                ))} · {q.created}
+                {fmt(
+                  (q.items || []).reduce(
+                    (s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+                    Number(q.amount) || 0
+                  ),
+                  q.currency || "MOP"
+                )} · {q.created}
               </div>
             </button>
           ))
@@ -416,10 +419,13 @@ function DealDetailDrawer({
                   marginTop: 2,
                 }}
               >
-                {fmt((k.items || []).reduce(
-                  (s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
-                  Number(k.amount) || 0
-                ))} · {k.signDate || k.created}
+                {fmt(
+                  (k.items || []).reduce(
+                    (s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+                    Number(k.amount) || 0
+                  ),
+                  k.currency || "MOP"
+                )} · {k.signDate || k.created}
               </div>
             </button>
           ))
