@@ -36,6 +36,9 @@ export const PRICING_CATEGORIES = ["顧問服務", "硬體設備", "行銷服務
 export const PRICING_BILLING = ["一次性", "月付", "季付", "年付"];
 export const PRICING_STATUSES = ["啟用", "停用"];
 
+export const CURRENCIES = ["MOP", "HKD", "RMB"];
+export const DEFAULT_CURRENCY = "MOP";
+
 // Common add-on templates for quotes/contracts. Users can also add a fully
 // custom add-on; these are just one-tap shortcuts.
 export const ADDON_PRESETS = [

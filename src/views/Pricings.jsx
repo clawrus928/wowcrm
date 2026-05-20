@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import {
+  CURRENCIES,
+  DEFAULT_CURRENCY,
   PRICING_BILLING,
   PRICING_CATEGORIES,
   PRICING_STATUSES,
@@ -22,6 +24,7 @@ import {
 const EMPTY_PRICING = {
   name: "",
   category: "顧問服務",
+  currency: DEFAULT_CURRENCY,
   price: 0,
   cost: 0,
   billingType: "一次性",
@@ -84,14 +87,20 @@ export function PricingsView({ store, drawerSeed, onConsumeSeed }) {
       key: "price",
       label: "預設售價",
       mono: true,
-      render: (r) => <span style={{ fontWeight: 600 }}>{fmt(r.price || 0)}</span>,
+      render: (r) => (
+        <span style={{ fontWeight: 600 }}>
+          {fmt(r.price || 0, r.currency || DEFAULT_CURRENCY)}
+        </span>
+      ),
     },
     {
       key: "cost",
       label: "成本",
       mono: true,
       render: (r) => (
-        <span style={{ color: T.textSecondary }}>{fmt(r.cost || 0)}</span>
+        <span style={{ color: T.textSecondary }}>
+          {fmt(r.cost || 0, r.currency || DEFAULT_CURRENCY)}
+        </span>
       ),
     },
     {
@@ -103,7 +112,8 @@ export function PricingsView({ store, drawerSeed, onConsumeSeed }) {
         const pct = r.price ? Math.round((m / r.price) * 100) : 0;
         return (
           <span style={{ color: m > 0 ? "#059669" : "#DC2626", fontWeight: 600 }}>
-            {fmt(m)} <span style={{ fontSize: 10, opacity: 0.7 }}>({pct}%)</span>
+            {fmt(m, r.currency || DEFAULT_CURRENCY)}{" "}
+            <span style={{ fontSize: 10, opacity: 0.7 }}>({pct}%)</span>
           </span>
         );
       },
@@ -256,14 +266,19 @@ function PricingDetailDrawer({ pricing, onClose, onEdit, onDelete }) {
       </DetailSection>
 
       <DetailSection title="售價 / 成本">
+        <DetailRow label="貨幣">
+          <span style={s.badge("#6B7280", "#F3F4F6")}>
+            {pricing.currency || DEFAULT_CURRENCY}
+          </span>
+        </DetailRow>
         <DetailRow label="預設售價">
           <span style={{ fontFamily: T.mono, fontWeight: 700 }}>
-            {fmt(pricing.price || 0)}
+            {fmt(pricing.price || 0, pricing.currency || DEFAULT_CURRENCY)}
           </span>
         </DetailRow>
         <DetailRow label="成本">
           <span style={{ fontFamily: T.mono, color: T.textSecondary }}>
-            {fmt(pricing.cost || 0)}
+            {fmt(pricing.cost || 0, pricing.currency || DEFAULT_CURRENCY)}
           </span>
         </DetailRow>
         <DetailRow label="毛利">
@@ -274,7 +289,7 @@ function PricingDetailDrawer({ pricing, onClose, onEdit, onDelete }) {
               color: margin > 0 ? "#059669" : "#DC2626",
             }}
           >
-            {fmt(margin)} ({pct}%)
+            {fmt(margin, pricing.currency || DEFAULT_CURRENCY)} ({pct}%)
           </span>
         </DetailRow>
       </DetailSection>
@@ -363,10 +378,25 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
           options={PRICING_BILLING}
         />
       </Field>
-      <Field label="預設售價（MOP）" required error={errors.price}>
+      <Field label="貨幣">
+        <SelectInput
+          value={form.currency || DEFAULT_CURRENCY}
+          onChange={(v) => set("currency", v)}
+          options={CURRENCIES}
+        />
+      </Field>
+      <Field
+        label={`預設售價（${form.currency || DEFAULT_CURRENCY}）`}
+        required
+        error={errors.price}
+      >
         <NumberInput value={form.price} onChange={(v) => set("price", v)} />
       </Field>
-      <Field label="成本（MOP）" hint="內部欄位，不會列印給客戶" error={errors.cost}>
+      <Field
+        label={`成本（${form.currency || DEFAULT_CURRENCY}）`}
+        hint="內部欄位，不會列印給客戶"
+        error={errors.cost}
+      >
         <NumberInput value={form.cost} onChange={(v) => set("cost", v)} />
       </Field>
       <div
@@ -389,7 +419,7 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
             color: margin > 0 ? "#059669" : "#DC2626",
           }}
         >
-          {fmt(margin)} ({pct}%)
+          {fmt(margin, form.currency || DEFAULT_CURRENCY)} ({pct}%)
         </span>
       </div>
       <Field

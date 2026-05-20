@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CONTRACT_STATUSES, REPS } from "../constants.js";
+import { CONTRACT_STATUSES, CURRENCIES, DEFAULT_CURRENCY, REPS } from "../constants.js";
 import { fmt, getCustomer, getDeal, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
@@ -31,6 +31,7 @@ const EMPTY_CONTRACT = {
   title: "",
   customerId: null,
   dealId: null,
+  currency: DEFAULT_CURRENCY,
   items: [],
   addOns: [],
   status: "草稿",
@@ -123,7 +124,11 @@ export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
       key: "amount",
       label: "合同金額",
       mono: true,
-      render: (r) => <span style={{ fontWeight: 600, color: T.text }}>{fmt(contractAmount(r))}</span>,
+      render: (r) => (
+        <span style={{ fontWeight: 600, color: T.text }}>
+          {fmt(contractAmount(r), r.currency || DEFAULT_CURRENCY)}
+        </span>
+      ),
     },
     {
       key: "status",
@@ -239,6 +244,7 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
   const deal = getDeal(contract.dealId, deals);
   const items = contract.items || [];
   const addOns = contract.addOns || [];
+  const currency = contract.currency || DEFAULT_CURRENCY;
   const b = quoteBreakdown(contract);
   const commission = Number(contract.internalCommissionAmount) || 0;
   const netMargin = b.margin - commission;
@@ -314,10 +320,10 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
       </DetailSection>
 
       <DetailSection title="價格分解">
-        <BreakdownPanel breakdown={b} addOns={addOns} />
+        <BreakdownPanel breakdown={b} addOns={addOns} currency={currency} />
       </DetailSection>
 
-      <SummaryCards items={items} breakdown={b} />
+      <SummaryCards items={items} breakdown={b} currency={currency} />
 
       <DetailSection title="日期">
         <DetailRow label="簽約日期">
@@ -363,7 +369,7 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
           🔒 內部資訊（僅內部可見）
         </div>
         <DetailRow label="總成本">
-          <span style={{ fontFamily: T.mono }}>{fmt(b.totalCost)}</span>
+          <span style={{ fontFamily: T.mono }}>{fmt(b.totalCost, currency)}</span>
         </DetailRow>
         <DetailRow label="毛利">
           <span
@@ -373,12 +379,12 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
               color: b.margin > 0 ? "#059669" : "#DC2626",
             }}
           >
-            {fmt(b.margin)} ({b.total > 0 ? Math.round((b.margin / b.total) * 100) : 0}%)
+            {fmt(b.margin, currency)} ({b.total > 0 ? Math.round((b.margin / b.total) * 100) : 0}%)
           </span>
         </DetailRow>
         <DetailRow label="內部佣金">
           <span style={{ fontFamily: T.mono, fontWeight: 700, color: "#92400E" }}>
-            {fmt(commission)}
+            {fmt(commission, currency)}
           </span>
         </DetailRow>
         <DetailRow label="淨利（毛利 − 佣金）">
@@ -389,7 +395,7 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
               color: netMargin > 0 ? "#059669" : "#DC2626",
             }}
           >
-            {fmt(netMargin)}
+            {fmt(netMargin, currency)}
           </span>
         </DetailRow>
         {contract.internalNotes && (
@@ -470,11 +476,19 @@ function ContractFormDrawer({ initial, mode, customers, deals, pricings, onClose
           options={dealOptions.map((d) => ({ value: d.id, label: d.title }))}
         />
       </Field>
+      <Field label="貨幣">
+        <SelectInput
+          value={form.currency || DEFAULT_CURRENCY}
+          onChange={(v) => set("currency", v)}
+          options={CURRENCIES}
+        />
+      </Field>
       <Field label="收費項目" required error={errors.items}>
         <LineItemsEditor
           items={form.items}
           onChange={(items) => set("items", items)}
           pricings={pricings}
+          currency={form.currency || DEFAULT_CURRENCY}
         />
       </Field>
       <Field label="套餐優惠 / 加值費" hint="折扣會疊加到項目小計，加值費分開算進總承諾">
@@ -538,7 +552,10 @@ function ContractFormDrawer({ initial, mode, customers, deals, pricings, onClose
         >
           🔒 內部資訊（僅內部可見，不會列印給客戶）
         </div>
-        <Field label="內部佣金（MOP）" hint="付給渠道方 / 推薦人的金額，依此項目實際協商">
+        <Field
+          label={`內部佣金（${form.currency || DEFAULT_CURRENCY}）`}
+          hint="付給渠道方 / 推薦人的金額，依此項目實際協商"
+        >
           <NumberInput
             value={form.internalCommissionAmount}
             onChange={(v) => set("internalCommissionAmount", v)}
@@ -556,7 +573,7 @@ function ContractFormDrawer({ initial, mode, customers, deals, pricings, onClose
   );
 }
 
-function BreakdownPanel({ breakdown, addOns }) {
+function BreakdownPanel({ breakdown, addOns, currency = DEFAULT_CURRENCY }) {
   const b = breakdown;
   return (
     <div
@@ -567,9 +584,9 @@ function BreakdownPanel({ breakdown, addOns }) {
         fontFamily: T.font,
       }}
     >
-      <BRow label="原價" value={fmt(b.subtotal)} />
+      <BRow label="原價" value={fmt(b.subtotal, currency)} />
       {b.lineDiscount > 0 && (
-        <BRow label="項目折扣" value={`−${fmt(b.lineDiscount)}`} color="#059669" />
+        <BRow label="項目折扣" value={`−${fmt(b.lineDiscount, currency)}`} color="#059669" />
       )}
       {(addOns || [])
         .filter((a) => a.kind === "discount" && Number(a.amount) > 0)
@@ -579,22 +596,22 @@ function BreakdownPanel({ breakdown, addOns }) {
             <BRow
               key={a.id}
               label={`${a.name || "折扣"} −${a.amount}%`}
-              value={`−${fmt(amt)}`}
+              value={`−${fmt(amt, currency)}`}
               color="#059669"
             />
           );
         })}
       <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 6, paddingTop: 6 }} />
-      <BRow label="應收（年費）" value={fmt(b.total)} bold accent />
+      <BRow label="應收（年費）" value={fmt(b.total, currency)} bold accent />
       {(addOns || [])
         .filter((a) => a.kind === "fee" && Number(a.amount) > 0)
         .map((a) => (
-          <BRow key={a.id} label={a.name || "加值費"} value={fmt(Number(a.amount))} color="#D97706" />
+          <BRow key={a.id} label={a.name || "加值費"} value={fmt(Number(a.amount), currency)} color="#D97706" />
         ))}
       {b.addOnFee > 0 && (
         <>
           <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 6, paddingTop: 6 }} />
-          <BRow label="總承諾" value={fmt(b.totalCommitment)} bold />
+          <BRow label="總承諾" value={fmt(b.totalCommitment, currency)} bold />
         </>
       )}
     </div>
@@ -627,7 +644,7 @@ function BRow({ label, value, bold, accent, color }) {
   );
 }
 
-function SummaryCards({ items, breakdown }) {
+function SummaryCards({ items, breakdown, currency = DEFAULT_CURRENCY }) {
   const b = breakdown;
   const storeCount = (items || []).reduce(
     (sum, it) => sum + (Number(it.quantity) || 0),
@@ -635,18 +652,18 @@ function SummaryCards({ items, breakdown }) {
   );
   const perUnit = storeCount > 0 ? b.total / storeCount : 0;
   const cards = [
-    { label: "應收（年費）", value: fmt(b.total), color: T.accent },
+    { label: "應收（年費）", value: fmt(b.total, currency), color: T.accent },
     {
       label: storeCount > 0 ? `平均每單位（${storeCount}）` : "平均每單位",
-      value: storeCount > 0 ? fmt(perUnit) : "—",
+      value: storeCount > 0 ? fmt(perUnit, currency) : "—",
       color: "#2563EB",
     },
     {
       label: "加值費",
-      value: b.addOnFee > 0 ? fmt(b.addOnFee) : "—",
+      value: b.addOnFee > 0 ? fmt(b.addOnFee, currency) : "—",
       color: "#D97706",
     },
-    { label: "總承諾", value: fmt(b.totalCommitment), color: "#7C3AED" },
+    { label: "總承諾", value: fmt(b.totalCommitment, currency), color: "#7C3AED" },
   ];
   return (
     <div

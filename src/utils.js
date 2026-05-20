@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { PRODUCTS, REPS } from "./constants.js";
 
-export const fmt = (n) => `MOP ${Number(n || 0).toLocaleString()}`;
+export const fmt = (n, currency = "MOP") =>
+  `${currency} ${Number(n || 0).toLocaleString()}`;
 
 // Compute total amount for records that may carry either a flat `amount`
 // (older quotes/contracts) or a `items: [{quantity, unitPrice, discountPct?}]`

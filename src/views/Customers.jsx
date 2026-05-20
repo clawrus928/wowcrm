@@ -512,7 +512,7 @@ function CustomerDetailDrawer({
             >
               <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{k.title}</div>
               <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: T.mono }}>
-                {fmt(derivedAmount(k))} · {k.status}
+                {fmt(derivedAmount(k), k.currency || "MOP")} · {k.status}
               </div>
             </div>
           ))
@@ -535,7 +535,7 @@ function CustomerDetailDrawer({
             >
               <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{q.title}</div>
               <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: T.mono }}>
-                {fmt(derivedAmount(q))} · {q.status}
+                {fmt(derivedAmount(q), q.currency || "MOP")} · {q.status}
               </div>
             </div>
           ))

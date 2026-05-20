@@ -33,7 +33,7 @@ export function totalsFor(items) {
   };
 }
 
-export function LineItemsEditor({ items, onChange, pricings }) {
+export function LineItemsEditor({ items, onChange, pricings, currency = "MOP" }) {
   const list = items || [];
 
   const updateAt = (idx, patch) => {
@@ -91,6 +91,7 @@ export function LineItemsEditor({ items, onChange, pricings }) {
           item={it}
           idx={idx}
           pricings={activePricings}
+          currency={currency}
           onPick={(id) => pickPricing(idx, id)}
           onChange={(patch) => updateAt(idx, patch)}
           onRemove={() => removeAt(idx)}
@@ -125,11 +126,11 @@ export function LineItemsEditor({ items, onChange, pricings }) {
           borderRadius: T.radiusSm,
         }}
       >
-        <Row label="原價合計" value={fmt(breakdown.subtotal)} />
+        <Row label="原價合計" value={fmt(breakdown.subtotal, currency)} />
         {breakdown.lineDiscount > 0 && (
           <Row
             label="項目折扣"
-            value={`-${fmt(breakdown.lineDiscount)}`}
+            value={`-${fmt(breakdown.lineDiscount, currency)}`}
             color="#059669"
           />
         )}
@@ -140,7 +141,7 @@ export function LineItemsEditor({ items, onChange, pricings }) {
             paddingTop: 6,
           }}
         />
-        <Row label="小計" value={fmt(breakdown.afterLineDiscount)} bold accent />
+        <Row label="小計" value={fmt(breakdown.afterLineDiscount, currency)} bold accent />
       </div>
 
       <div
@@ -165,10 +166,10 @@ export function LineItemsEditor({ items, onChange, pricings }) {
         >
           🔒 內部 — 項目成本 / 毛利
         </div>
-        <Row label="總成本" value={fmt(breakdown.totalCost)} compact />
+        <Row label="總成本" value={fmt(breakdown.totalCost, currency)} compact />
         <Row
           label="毛利（折扣後）"
-          value={`${fmt(breakdown.afterLineDiscount - breakdown.totalCost)} (${
+          value={`${fmt(breakdown.afterLineDiscount - breakdown.totalCost, currency)} (${
             breakdown.afterLineDiscount > 0
               ? Math.round(
                   ((breakdown.afterLineDiscount - breakdown.totalCost) /
@@ -215,7 +216,7 @@ function Row({ label, value, bold, accent, compact, color }) {
   );
 }
 
-function ItemCard({ item, idx, pricings, onPick, onChange, onRemove }) {
+function ItemCard({ item, idx, pricings, currency, onPick, onChange, onRemove }) {
   const gross = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
   const pct = Math.max(0, Math.min(100, Number(item.discountPct) || 0));
   const subtotal = gross * (1 - pct / 100);
@@ -284,7 +285,7 @@ function ItemCard({ item, idx, pricings, onPick, onChange, onRemove }) {
           emptyText="目錄沒有項目，請先到「收費項目」建立"
           options={pricings.map((p) => ({
             value: p.id,
-            label: `${p.name}　${fmt(p.price || 0)}（${p.category}）`,
+            label: `${p.name}　${fmt(p.price || 0, p.currency || "MOP")}（${p.category}）`,
           }))}
         />
       </SubField>
@@ -368,7 +369,7 @@ function ItemCard({ item, idx, pricings, onPick, onChange, onRemove }) {
         }}
       >
         <span style={{ color: T.textTertiary }}>
-          {item.quantity} × {fmt(item.unitPrice)}
+          {item.quantity} × {fmt(item.unitPrice, currency)}
           {pct > 0 && (
             <span style={{ marginLeft: 6, color: "#059669" }}>
               −{pct}%
@@ -376,7 +377,7 @@ function ItemCard({ item, idx, pricings, onPick, onChange, onRemove }) {
           )}
         </span>
         <span style={{ fontWeight: 700, color: T.text, fontSize: 14 }}>
-          {fmt(subtotal)}
+          {fmt(subtotal, currency)}
         </span>
       </div>
     </div>
