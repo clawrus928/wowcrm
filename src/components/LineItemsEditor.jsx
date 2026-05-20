@@ -1,10 +1,11 @@
-import { fmt, newId } from "../utils.js";
+import { fmt, newId, quoteBreakdown, suggestTierDiscount } from "../utils.js";
 import { T } from "../theme.js";
 import { s } from "../styles.js";
 import { NumberInput, SearchSelect, TextInput } from "./fields.jsx";
 
 // Each line item shape:
-// { id, pricingId?, name, quantity, unitPrice, cost, billingType?, description? }
+// { id, pricingId?, name, quantity, unitPrice, cost, discountPct?,
+//   billingType?, description? }
 
 export function emptyLineItem() {
   return {
@@ -14,22 +15,22 @@ export function emptyLineItem() {
     quantity: 1,
     unitPrice: 0,
     cost: 0,
+    discountPct: 0,
     billingType: "一次性",
     description: "",
   };
 }
 
+// Backwards-compat shim — callers used totalsFor() to get {total, totalCost,
+// margin} before discounts / add-ons existed. Now we route through the full
+// breakdown but only return the same trio so existing call sites keep working.
 export function totalsFor(items) {
-  const list = items || [];
-  const total = list.reduce(
-    (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
-    0
-  );
-  const totalCost = list.reduce(
-    (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.cost) || 0),
-    0
-  );
-  return { total, totalCost, margin: total - totalCost };
+  const b = quoteBreakdown({ items });
+  return {
+    total: b.afterLineDiscount,
+    totalCost: b.totalCost,
+    margin: b.afterLineDiscount - b.totalCost,
+  };
 }
 
 export function LineItemsEditor({ items, onChange, pricings }) {
@@ -49,6 +50,9 @@ export function LineItemsEditor({ items, onChange, pricings }) {
   const pickPricing = (idx, pricingId) => {
     const p = (pricings || []).find((x) => x.id === pricingId);
     if (!p) return updateAt(idx, { pricingId: null });
+    const current = list[idx] || {};
+    const qty = Number(current.quantity) || 1;
+    const suggested = suggestTierDiscount(p, qty);
     updateAt(idx, {
       pricingId: p.id,
       name: p.name,
@@ -56,10 +60,11 @@ export function LineItemsEditor({ items, onChange, pricings }) {
       cost: Number(p.cost) || 0,
       billingType: p.billingType || "一次性",
       description: p.description || "",
+      discountPct: suggested, // auto-apply tier on pick
     });
   };
 
-  const { total, totalCost, margin } = totalsFor(list);
+  const breakdown = quoteBreakdown({ items: list });
   const activePricings = (pricings || []).filter((p) => p.status !== "停用");
 
   return (
@@ -120,7 +125,22 @@ export function LineItemsEditor({ items, onChange, pricings }) {
           borderRadius: T.radiusSm,
         }}
       >
-        <Row label="合計" value={fmt(total)} bold accent />
+        <Row label="原價合計" value={fmt(breakdown.subtotal)} />
+        {breakdown.lineDiscount > 0 && (
+          <Row
+            label="項目折扣"
+            value={`-${fmt(breakdown.lineDiscount)}`}
+            color="#059669"
+          />
+        )}
+        <div
+          style={{
+            borderTop: `1px solid ${T.borderLight}`,
+            marginTop: 6,
+            paddingTop: 6,
+          }}
+        />
+        <Row label="小計" value={fmt(breakdown.afterLineDiscount)} bold accent />
       </div>
 
       <div
@@ -143,14 +163,26 @@ export function LineItemsEditor({ items, onChange, pricings }) {
             marginBottom: 6,
           }}
         >
-          🔒 內部 — 成本 / 毛利
+          🔒 內部 — 項目成本 / 毛利
         </div>
-        <Row label="總成本" value={fmt(totalCost)} compact />
+        <Row label="總成本" value={fmt(breakdown.totalCost)} compact />
         <Row
-          label="毛利"
-          value={`${fmt(margin)} (${total > 0 ? Math.round((margin / total) * 100) : 0}%)`}
+          label="毛利（折扣後）"
+          value={`${fmt(breakdown.afterLineDiscount - breakdown.totalCost)} (${
+            breakdown.afterLineDiscount > 0
+              ? Math.round(
+                  ((breakdown.afterLineDiscount - breakdown.totalCost) /
+                    breakdown.afterLineDiscount) *
+                    100
+                )
+              : 0
+          }%)`}
           compact
-          color={margin > 0 ? "#059669" : "#DC2626"}
+          color={
+            breakdown.afterLineDiscount - breakdown.totalCost > 0
+              ? "#059669"
+              : "#DC2626"
+          }
         />
       </div>
     </div>
@@ -184,7 +216,20 @@ function Row({ label, value, bold, accent, compact, color }) {
 }
 
 function ItemCard({ item, idx, pricings, onPick, onChange, onRemove }) {
-  const subtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+  const gross = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+  const pct = Math.max(0, Math.min(100, Number(item.discountPct) || 0));
+  const subtotal = gross * (1 - pct / 100);
+
+  // Tier hint: if the picked pricing has tiers and the current discountPct
+  // doesn't match the suggested tier for the current quantity, surface a
+  // one-click suggestion.
+  const pickedPricing = item.pricingId
+    ? pricings.find((p) => p.id === item.pricingId)
+    : null;
+  const tierSuggestion = pickedPricing
+    ? suggestTierDiscount(pickedPricing, item.quantity)
+    : 0;
+  const showTierHint = tierSuggestion > 0 && tierSuggestion !== pct;
   return (
     <div
       style={{
@@ -273,6 +318,33 @@ function ItemCard({ item, idx, pricings, onPick, onChange, onRemove }) {
 
       <div style={{ display: "flex", gap: 8 }}>
         <div style={{ flex: 1 }}>
+          <SubField label="折扣 %">
+            <NumberInput
+              value={item.discountPct}
+              onChange={(v) => onChange({ discountPct: v ?? 0 })}
+            />
+          </SubField>
+          {showTierHint && (
+            <button
+              type="button"
+              onClick={() => onChange({ discountPct: tierSuggestion })}
+              style={{
+                marginTop: -4,
+                background: "none",
+                border: "none",
+                color: T.accent,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: 0,
+                fontFamily: T.font,
+              }}
+            >
+              套用階梯折扣 {tierSuggestion}%（{item.quantity} 件）
+            </button>
+          )}
+        </div>
+        <div style={{ flex: 1 }}>
           <SubField label="成本（MOP / 內部）">
             <NumberInput
               value={item.cost}
@@ -280,32 +352,187 @@ function ItemCard({ item, idx, pricings, onPick, onChange, onRemove }) {
             />
           </SubField>
         </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 4,
+          padding: "8px 10px",
+          background: T.surfaceAlt,
+          borderRadius: T.radiusSm,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          fontFamily: T.mono,
+          fontSize: 12,
+        }}
+      >
+        <span style={{ color: T.textTertiary }}>
+          {item.quantity} × {fmt(item.unitPrice)}
+          {pct > 0 && (
+            <span style={{ marginLeft: 6, color: "#059669" }}>
+              −{pct}%
+            </span>
+          )}
+        </span>
+        <span style={{ fontWeight: 700, color: T.text, fontSize: 14 }}>
+          {fmt(subtotal)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Quote / contract level add-ons: stackable percentage discounts and absolute
+// fees that show up below the line items in the breakdown.
+//
+// Each add-on shape: { id, kind: "discount"|"fee", name, amount }
+export function AddOnsEditor({ addOns, onChange, presets }) {
+  const list = addOns || [];
+  const add = (preset) => {
+    const base = preset
+      ? { ...preset, id: newId("ao") }
+      : { id: newId("ao"), name: "", kind: "discount", amount: 0 };
+    onChange([...list, base]);
+  };
+  const update = (idx, patch) =>
+    onChange(list.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
+  const remove = (idx) => onChange(list.filter((_, i) => i !== idx));
+
+  return (
+    <div>
+      {list.length === 0 && (
         <div
           style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "flex-end",
-            paddingBottom: 6,
+            padding: 12,
+            border: `1.5px dashed ${T.border}`,
+            borderRadius: T.radiusSm,
+            textAlign: "center",
+            color: T.textTertiary,
+            fontSize: 12,
+            marginBottom: 8,
           }}
         >
-          <div
+          尚未加入優惠 / 加值費
+        </div>
+      )}
+
+      {list.map((a, idx) => (
+        <AddOnRow
+          key={a.id}
+          addOn={a}
+          onChange={(patch) => update(idx, patch)}
+          onRemove={() => remove(idx)}
+        />
+      ))}
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+        {(presets || []).map((p) => (
+          <button
+            key={p.name + p.kind}
+            type="button"
+            onClick={() => add(p)}
             style={{
-              fontSize: 12,
+              padding: "5px 10px",
+              borderRadius: 999,
+              border: `1.5px solid ${T.border}`,
+              background: T.surface,
               color: T.textSecondary,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
               fontFamily: T.font,
-              textAlign: "right",
             }}
           >
-            <div style={{ fontSize: 10, color: T.textTertiary }}>小計</div>
-            <div
-              style={{ fontFamily: T.mono, fontWeight: 700, color: T.text }}
-            >
-              {fmt(subtotal)}
-            </div>
-          </div>
-        </div>
+            ＋ {p.name}
+            {p.kind === "discount" && p.amount > 0 ? ` −${p.amount}%` : ""}
+            {p.kind === "fee" ? "（加值費）" : ""}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => add()}
+          style={{
+            padding: "5px 10px",
+            borderRadius: 999,
+            border: `1.5px dashed ${T.border}`,
+            background: "transparent",
+            color: T.accent,
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: T.font,
+          }}
+        >
+          ＋ 自訂
+        </button>
       </div>
+    </div>
+  );
+}
+
+function AddOnRow({ addOn, onChange, onRemove }) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${T.borderLight}`,
+        borderLeft:
+          addOn.kind === "discount"
+            ? `3px solid #05966940`
+            : `3px solid #D9770640`,
+        borderRadius: T.radiusSm,
+        padding: 10,
+        marginBottom: 8,
+        background: T.surface,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <select
+        value={addOn.kind}
+        onChange={(e) => onChange({ kind: e.target.value })}
+        style={{
+          ...s.select,
+          padding: "6px 8px",
+          fontSize: 11,
+          flexShrink: 0,
+        }}
+      >
+        <option value="discount">折扣 %</option>
+        <option value="fee">加值費</option>
+      </select>
+      <input
+        type="text"
+        value={addOn.name}
+        placeholder={addOn.kind === "discount" ? "名稱（例：組合購）" : "名稱（例：廣告充值）"}
+        onChange={(e) => onChange({ name: e.target.value })}
+        style={{ ...s.input, padding: "6px 10px", fontSize: 12, flex: 1, minWidth: 0 }}
+      />
+      <div style={{ width: 100, flexShrink: 0 }}>
+        <NumberInput
+          value={addOn.amount}
+          onChange={(v) => onChange({ amount: v ?? 0 })}
+        />
+      </div>
+      <span style={{ fontSize: 11, color: T.textTertiary, flexShrink: 0 }}>
+        {addOn.kind === "discount" ? "%" : "MOP"}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        style={{
+          background: "none",
+          border: "none",
+          color: "#DC2626",
+          fontSize: 14,
+          cursor: "pointer",
+          padding: 4,
+          flexShrink: 0,
+        }}
+      >
+        ×
+      </button>
     </div>
   );
 }

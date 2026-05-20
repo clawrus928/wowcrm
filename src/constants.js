@@ -35,6 +35,15 @@ export const SUPPLIER_STATUSES = ["啟用", "停用"];
 export const PRICING_CATEGORIES = ["顧問服務", "硬體設備", "行銷服務", "其他"];
 export const PRICING_BILLING = ["一次性", "月付", "季付", "年付"];
 export const PRICING_STATUSES = ["啟用", "停用"];
+
+// Common add-on templates for quotes/contracts. Users can also add a fully
+// custom add-on; these are just one-tap shortcuts.
+export const ADDON_PRESETS = [
+  { name: "組合購折扣", kind: "discount", amount: 20 },
+  { name: "會銷折扣", kind: "discount", amount: 10 },
+  { name: "新客戶優惠", kind: "discount", amount: 5 },
+  { name: "廣告充值", kind: "fee", amount: 0 },
+];
 export const CUSTOMER_STATUSES = ["未處理", "初訪", "跟進中", "報價"];
 export const DEAL_STATUSES = ["進行中", "已成交", "已流失"];
 export const CONTRACT_STATUSES = ["草稿", "審批中", "已簽署", "執行中", "已完成", "已終止"];
