@@ -36,18 +36,26 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
   const downloadImage = async () => {
     if (!printRef.current || busy) return;
     setBusy("image");
+    // Temporarily disable the responsive zoom so html2canvas captures the
+    // page at full 760px resolution rather than the shrunk-for-mobile size.
+    const el = printRef.current;
+    const prevZoom = el.style.zoom;
+    el.style.zoom = "1";
     try {
       const { default: html2canvas } = await import("html2canvas");
-      const canvas = await html2canvas(printRef.current, {
+      const canvas = await html2canvas(el, {
         scale: 2,
         backgroundColor: "#ffffff",
         useCORS: true,
         logging: false,
+        width: 760,
+        windowWidth: 760,
       });
       triggerDownload(canvas.toDataURL("image/png"), `${fileBase}.png`);
     } catch (err) {
       alert("產生圖片失敗：" + (err.message || err));
     } finally {
+      el.style.zoom = prevZoom;
       setBusy(null);
     }
   };
@@ -261,6 +269,17 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
           }
           .no-print { display: none !important; }
         }
+
+        /* Auto-shrink the 760px-wide print page to fit small screens so
+           the A4 proportions stay correct (rather than squishing). */
+        @media (max-width: 820px) {
+          .qpv-print {
+            zoom: calc((100vw - 40px) / 760);
+          }
+        }
+        @media (max-width: 820px) and (max-width: 0) {
+          /* Fallback for browsers that ignore zoom — most modern do */
+        }
       `}</style>
     </>
   );
@@ -287,7 +306,8 @@ function Page({
         background: "#fff",
         margin: "0 auto",
         padding: "28px 36px",
-        maxWidth: 760,
+        width: 760,
+        boxSizing: "border-box",
         fontFamily: T.font,
         color: "#111",
         fontSize: 13,
