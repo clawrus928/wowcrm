@@ -17,16 +17,20 @@ import {
   TextInput,
 } from "../components/fields.jsx";
 import {
+  AddOnsEditor,
   emptyLineItem,
   LineItemsEditor,
   totalsFor,
 } from "../components/LineItemsEditor.jsx";
+import { ADDON_PRESETS } from "../constants.js";
+import { quoteBreakdown } from "../utils.js";
 
 const EMPTY_QUOTE = {
   title: "",
   customerId: null,
   dealId: null,
   items: [],
+  addOns: [],
   status: "草稿",
   validUntil: null,
   owner: null,
@@ -240,7 +244,8 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
   const cust = getCustomer(quote.customerId, customers);
   const deal = getDeal(quote.dealId, deals);
   const items = quote.items || [];
-  const { total, totalCost, margin } = totalsFor(items);
+  const addOns = quote.addOns || [];
+  const b = quoteBreakdown(quote);
   return (
     <Drawer
       open
@@ -313,30 +318,14 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
             </div>
           ))
         )}
-        <div
-          style={{
-            marginTop: 8,
-            padding: "10px 12px",
-            background: T.surfaceAlt,
-            borderRadius: T.radiusSm,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-          }}
-        >
-          <span style={{ fontSize: 12, color: T.textSecondary }}>合計</span>
-          <span
-            style={{
-              fontFamily: T.mono,
-              fontSize: 18,
-              fontWeight: 800,
-              color: T.accent,
-            }}
-          >
-            {fmt(total)}
-          </span>
-        </div>
       </DetailSection>
+
+      <DetailSection title="價格分解">
+        <BreakdownPanel breakdown={b} addOns={addOns} />
+      </DetailSection>
+
+      <SummaryCards items={items} breakdown={b} />
+
 
       <div
         style={{
@@ -360,17 +349,17 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
           🔒 內部 — 成本 / 毛利
         </div>
         <DetailRow label="總成本">
-          <span style={{ fontFamily: T.mono }}>{fmt(totalCost)}</span>
+          <span style={{ fontFamily: T.mono }}>{fmt(b.totalCost)}</span>
         </DetailRow>
         <DetailRow label="毛利">
           <span
             style={{
               fontFamily: T.mono,
               fontWeight: 700,
-              color: margin > 0 ? "#059669" : "#DC2626",
+              color: b.margin > 0 ? "#059669" : "#DC2626",
             }}
           >
-            {fmt(margin)} ({total > 0 ? Math.round((margin / total) * 100) : 0}%)
+            {fmt(b.margin)} ({b.total > 0 ? Math.round((b.margin / b.total) * 100) : 0}%)
           </span>
         </DetailRow>
       </div>
@@ -463,6 +452,13 @@ function QuoteFormDrawer({ initial, mode, customers, deals, pricings, onClose, o
           pricings={pricings}
         />
       </Field>
+      <Field label="套餐優惠 / 加值費" hint="折扣會疊加到項目小計，加值費分開算進總承諾">
+        <AddOnsEditor
+          addOns={form.addOns}
+          onChange={(addOns) => set("addOns", addOns)}
+          presets={ADDON_PRESETS}
+        />
+      </Field>
       <Field label="狀態">
         <SelectInput
           value={form.status}
@@ -491,5 +487,162 @@ function QuoteFormDrawer({ initial, mode, customers, deals, pricings, onClose, o
         />
       </Field>
     </Drawer>
+  );
+}
+
+function BreakdownPanel({ breakdown, addOns }) {
+  const b = breakdown;
+  return (
+    <div
+      style={{
+        padding: "12px 14px",
+        background: T.surfaceAlt,
+        borderRadius: T.radiusSm,
+        fontFamily: T.font,
+      }}
+    >
+      <Row label={`原價`} value={fmt(b.subtotal)} mono />
+      {b.lineDiscount > 0 && (
+        <Row
+          label="項目折扣"
+          value={`−${fmt(b.lineDiscount)}`}
+          mono
+          color="#059669"
+        />
+      )}
+      {(addOns || [])
+        .filter((a) => a.kind === "discount" && Number(a.amount) > 0)
+        .map((a) => {
+          const amt = b.afterLineDiscount * (Number(a.amount) / 100);
+          return (
+            <Row
+              key={a.id}
+              label={`${a.name || "折扣"} −${a.amount}%`}
+              value={`−${fmt(amt)}`}
+              mono
+              color="#059669"
+            />
+          );
+        })}
+      <div
+        style={{
+          borderTop: `1px solid ${T.border}`,
+          marginTop: 6,
+          paddingTop: 6,
+        }}
+      />
+      <Row label="應收（年費）" value={fmt(b.total)} mono bold accent />
+      {(addOns || [])
+        .filter((a) => a.kind === "fee" && Number(a.amount) > 0)
+        .map((a) => (
+          <Row
+            key={a.id}
+            label={a.name || "加值費"}
+            value={fmt(Number(a.amount))}
+            mono
+            color="#D97706"
+          />
+        ))}
+      {b.addOnFee > 0 && (
+        <>
+          <div
+            style={{
+              borderTop: `1px solid ${T.border}`,
+              marginTop: 6,
+              paddingTop: 6,
+            }}
+          />
+          <Row label="總承諾" value={fmt(b.totalCommitment)} mono bold />
+        </>
+      )}
+    </div>
+  );
+}
+
+function Row({ label, value, mono, bold, accent, color }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        padding: "4px 0",
+        fontSize: 13,
+      }}
+    >
+      <span style={{ color: T.textSecondary }}>{label}</span>
+      <span
+        style={{
+          fontFamily: mono ? T.mono : T.font,
+          fontWeight: bold ? 800 : 600,
+          color: color || (accent ? T.accent : T.text),
+          fontSize: bold ? 16 : 13,
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function SummaryCards({ items, breakdown }) {
+  const b = breakdown;
+  const storeCount = (items || []).reduce(
+    (sum, it) => sum + (Number(it.quantity) || 0),
+    0
+  );
+  const perUnit = storeCount > 0 ? b.total / storeCount : 0;
+  const cards = [
+    { label: "應收（年費）", value: fmt(b.total), color: T.accent },
+    {
+      label: storeCount > 0 ? `平均每單位（${storeCount}）` : "平均每單位",
+      value: storeCount > 0 ? fmt(perUnit) : "—",
+      color: "#2563EB",
+    },
+    {
+      label: "加值費",
+      value: b.addOnFee > 0 ? fmt(b.addOnFee) : "—",
+      color: "#D97706",
+    },
+    {
+      label: "總承諾",
+      value: fmt(b.totalCommitment),
+      color: "#7C3AED",
+    },
+  ];
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, 1fr)",
+        gap: 6,
+        marginTop: 12,
+      }}
+    >
+      {cards.map((c) => (
+        <div
+          key={c.label}
+          style={{
+            background: T.surfaceAlt,
+            borderRadius: T.radiusSm,
+            padding: "10px 12px",
+          }}
+        >
+          <div style={{ fontSize: 10, color: T.textTertiary, marginBottom: 4 }}>
+            {c.label}
+          </div>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: c.color,
+              fontFamily: T.mono,
+            }}
+          >
+            {c.value}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

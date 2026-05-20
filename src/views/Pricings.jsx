@@ -27,6 +27,7 @@ const EMPTY_PRICING = {
   billingType: "一次性",
   description: "",
   status: "啟用",
+  tiers: [],
   owner: null,
 };
 
@@ -391,6 +392,15 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
           {fmt(margin)} ({pct}%)
         </span>
       </div>
+      <Field
+        label="階梯折扣表"
+        hint="按數量自動套折扣。報價時數量達到 minQty → 自動套對應折扣 %"
+      >
+        <TiersEditor
+          tiers={form.tiers || []}
+          onChange={(tiers) => set("tiers", tiers)}
+        />
+      </Field>
       <Field label="說明">
         <TextArea
           value={form.description}
@@ -413,5 +423,101 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
         />
       </Field>
     </Drawer>
+  );
+}
+
+function TiersEditor({ tiers, onChange }) {
+  const list = (tiers || []).slice().sort(
+    (a, b) => (Number(a.minQty) || 0) - (Number(b.minQty) || 0)
+  );
+  const add = () =>
+    onChange([
+      ...list,
+      { minQty: (list[list.length - 1]?.minQty || 1) + 1, discountPct: 10 },
+    ]);
+  const update = (idx, patch) =>
+    onChange(list.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  const remove = (idx) => onChange(list.filter((_, i) => i !== idx));
+
+  return (
+    <div>
+      {list.length === 0 && (
+        <div
+          style={{
+            padding: 10,
+            border: `1.5px dashed ${T.border}`,
+            borderRadius: T.radiusSm,
+            textAlign: "center",
+            color: T.textTertiary,
+            fontSize: 12,
+            marginBottom: 6,
+          }}
+        >
+          無階梯折扣
+        </div>
+      )}
+      {list.map((t, idx) => (
+        <div
+          key={idx}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 6,
+          }}
+        >
+          <span style={{ fontSize: 11, color: T.textTertiary, width: 60 }}>
+            ≥ 數量
+          </span>
+          <div style={{ flex: 1 }}>
+            <NumberInput
+              value={t.minQty}
+              onChange={(v) => update(idx, { minQty: v ?? 0 })}
+            />
+          </div>
+          <span style={{ fontSize: 11, color: T.textTertiary }}>→ 折扣</span>
+          <div style={{ width: 80 }}>
+            <NumberInput
+              value={t.discountPct}
+              onChange={(v) => update(idx, { discountPct: v ?? 0 })}
+            />
+          </div>
+          <span style={{ fontSize: 11, color: T.textTertiary }}>%</span>
+          <button
+            type="button"
+            onClick={() => remove(idx)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#DC2626",
+              fontSize: 14,
+              cursor: "pointer",
+              padding: 4,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        style={{
+          width: "100%",
+          padding: "8px 12px",
+          border: `1.5px dashed ${T.border}`,
+          borderRadius: T.radiusSm,
+          background: T.surface,
+          color: T.accent,
+          fontWeight: 600,
+          fontSize: 12,
+          cursor: "pointer",
+          fontFamily: T.font,
+          marginTop: 4,
+        }}
+      >
+        ＋ 新增階梯
+      </button>
+    </div>
   );
 }
