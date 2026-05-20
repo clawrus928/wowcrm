@@ -116,6 +116,14 @@ export function CustomersView({
       label: "負責人",
       render: (r) => getRep(r.owner)?.name || "—",
     },
+    {
+      key: "collaborators",
+      label: "協作人",
+      render: (r) =>
+        r.collaborators && r.collaborators.length > 0
+          ? r.collaborators.map((id) => getRep(id)?.name).filter(Boolean).join("、")
+          : <span style={{ color: T.textTertiary }}>—</span>,
+    },
     { key: "created", label: "創建時間", mono: true },
   ];
 
