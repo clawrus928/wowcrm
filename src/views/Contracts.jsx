@@ -8,6 +8,7 @@ import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
 import { OwnerTabs } from "../components/Tabs.jsx";
 import { Drawer } from "../components/Drawer.jsx";
 import { DetailRow, DetailSection } from "../components/DetailRow.jsx";
+import { QuotePrintView } from "../components/QuotePrintView.jsx";
 import {
   DateInput,
   Field,
@@ -248,7 +249,9 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
   const b = quoteBreakdown(contract);
   const commission = Number(contract.internalCommissionAmount) || 0;
   const netMargin = b.margin - commission;
+  const [printOpen, setPrintOpen] = useState(false);
   return (
+    <>
     <Drawer
       open
       title={`合同 · ${contract.title}`}
@@ -259,6 +262,9 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
             刪除
           </button>
           <div style={{ flex: 1 }} />
+          <button onClick={() => setPrintOpen(true)} style={s.btn(false)}>
+            🖨 列印 / PDF
+          </button>
           <button onClick={onEdit} style={s.btn(true)}>
             編輯
           </button>
@@ -405,6 +411,15 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
         )}
       </div>
     </Drawer>
+    {printOpen && (
+      <QuotePrintView
+        record={contract}
+        kind="contract"
+        customers={customers}
+        onClose={() => setPrintOpen(false)}
+      />
+    )}
+    </>
   );
 }
 

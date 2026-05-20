@@ -8,6 +8,7 @@ import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
 import { OwnerTabs } from "../components/Tabs.jsx";
 import { Drawer } from "../components/Drawer.jsx";
 import { DetailRow, DetailSection } from "../components/DetailRow.jsx";
+import { QuotePrintView } from "../components/QuotePrintView.jsx";
 import {
   DateInput,
   Field,
@@ -252,7 +253,9 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
   const addOns = quote.addOns || [];
   const currency = quote.currency || DEFAULT_CURRENCY;
   const b = quoteBreakdown(quote);
+  const [printOpen, setPrintOpen] = useState(false);
   return (
+    <>
     <Drawer
       open
       title={`報價單 · ${quote.title}`}
@@ -263,6 +266,9 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
             刪除
           </button>
           <div style={{ flex: 1 }} />
+          <button onClick={() => setPrintOpen(true)} style={s.btn(false)}>
+            🖨 列印 / PDF
+          </button>
           <button onClick={onEdit} style={s.btn(true)}>
             編輯
           </button>
@@ -382,6 +388,15 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
         </DetailRow>
       </DetailSection>
     </Drawer>
+    {printOpen && (
+      <QuotePrintView
+        record={quote}
+        kind="quote"
+        customers={customers}
+        onClose={() => setPrintOpen(false)}
+      />
+    )}
+    </>
   );
 }
 

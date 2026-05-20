@@ -1,7 +1,7 @@
 import { fmt, newId, quoteBreakdown, suggestTierDiscount } from "../utils.js";
 import { T } from "../theme.js";
 import { s } from "../styles.js";
-import { NumberInput, SearchSelect, TextInput } from "./fields.jsx";
+import { NumberInput, SearchSelect, TextArea, TextInput } from "./fields.jsx";
 
 // Each line item shape:
 // { id, pricingId?, name, quantity, unitPrice, cost, discountPct?,
@@ -295,6 +295,14 @@ function ItemCard({ item, idx, pricings, currency, onPick, onChange, onRemove })
           value={item.name}
           onChange={(v) => onChange({ name: v })}
           placeholder="顯示在報價/合同上的項目名稱"
+        />
+      </SubField>
+
+      <SubField label="說明（會顯示在列印的報價單內）">
+        <TextArea
+          value={item.description}
+          onChange={(v) => onChange({ description: v })}
+          rows={3}
         />
       </SubField>
 
