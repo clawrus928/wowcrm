@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { COMPANY } from "../data/company.js";
 import { DEFAULT_CURRENCY } from "../constants.js";
 import { fmt, getCustomer, quoteBreakdown } from "../utils.js";
@@ -8,6 +8,9 @@ import { T } from "../theme.js";
 // the WOW Macau Excel template. Browser "Save as PDF" via the print dialog
 // produces a clean handout for the customer.
 export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
+  const printRef = useRef(null);
+  const [busy, setBusy] = useState(null);
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
@@ -25,6 +28,56 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
   const titleZh = kind === "contract" ? "合  同" : "報 價 單";
   const docNo = record.id;
   const docDate = record.created || "";
+  const cleanCust = (cust?.name || "").replace(/[^一-鿿A-Za-z0-9_-]/g, "") || "customer";
+  const fileBase = `${kind === "contract" ? "contract" : "quote"}-${cleanCust}-${docDate || docNo}`;
+
+  const downloadImage = async () => {
+    if (!printRef.current || busy) return;
+    setBusy("image");
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+      });
+      const link = document.createElement("a");
+      link.download = `${fileBase}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      alert("產生圖片失敗：" + (err.message || err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const downloadWord = () => {
+    if (!printRef.current || busy) return;
+    setBusy("word");
+    try {
+      const inner = printRef.current.outerHTML;
+      const html =
+        `<html xmlns:o='urn:schemas-microsoft-com:office:office' ` +
+        `xmlns:w='urn:schemas-microsoft-com:office:word' ` +
+        `xmlns='http://www.w3.org/TR/REC-html40'>` +
+        `<head><meta charset='utf-8'><title>${titleZh}</title>` +
+        `<xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml>` +
+        `<style>body { font-family: 'Noto Sans TC', sans-serif; }</style>` +
+        `</head><body>${inner}</body></html>`;
+      const blob = new Blob(["﻿", html], { type: "application/msword" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${fileBase}.doc`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("產生 Word 失敗：" + (err.message || err));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <>
@@ -72,33 +125,69 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
           <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
             預覽 — {titleZh.replace(/\s/g, "")}
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button
+              onClick={downloadWord}
+              disabled={busy === "word"}
+              style={{
+                padding: "7px 12px",
+                borderRadius: 5,
+                border: `1.5px solid ${T.border}`,
+                background: T.surface,
+                color: T.text,
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: busy ? "default" : "pointer",
+                fontFamily: T.font,
+                opacity: busy === "word" ? 0.6 : 1,
+              }}
+            >
+              📝 {busy === "word" ? "產生中…" : "Word"}
+            </button>
+            <button
+              onClick={downloadImage}
+              disabled={busy === "image"}
+              style={{
+                padding: "7px 12px",
+                borderRadius: 5,
+                border: `1.5px solid ${T.border}`,
+                background: T.surface,
+                color: T.text,
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: busy ? "default" : "pointer",
+                fontFamily: T.font,
+                opacity: busy === "image" ? 0.6 : 1,
+              }}
+            >
+              📷 {busy === "image" ? "產生中…" : "圖片"}
+            </button>
             <button
               onClick={() => window.print()}
               style={{
-                padding: "7px 16px",
+                padding: "7px 14px",
                 borderRadius: 5,
                 border: "none",
                 background: T.accent,
                 color: "#fff",
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: 12,
                 cursor: "pointer",
                 fontFamily: T.font,
               }}
             >
-              🖨 列印 / 存 PDF
+              🖨 列印 / PDF
             </button>
             <button
               onClick={onClose}
               style={{
-                padding: "7px 14px",
+                padding: "7px 12px",
                 borderRadius: 5,
                 border: `1.5px solid ${T.border}`,
                 background: T.surface,
                 color: T.textSecondary,
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: 12,
                 cursor: "pointer",
                 fontFamily: T.font,
               }}
@@ -120,6 +209,7 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
             titleZh={titleZh}
             docNo={docNo}
             docDate={docDate}
+            printRef={printRef}
           />
         </div>
       </div>
@@ -158,9 +248,11 @@ function Page({
   titleZh,
   docNo,
   docDate,
+  printRef,
 }) {
   return (
     <div
+      ref={printRef}
       className="qpv-print"
       style={{
         background: "#fff",
