@@ -10,6 +10,8 @@ import { T } from "../theme.js";
 export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
   const printRef = useRef(null);
   const [busy, setBusy] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -31,25 +33,36 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
   const cleanCust = (cust?.name || "").replace(/[^一-鿿A-Za-z0-9_-]/g, "") || "customer";
   const fileBase = `${kind === "contract" ? "contract" : "quote"}-${cleanCust}-${docDate || docNo}`;
 
-  const downloadImage = async () => {
-    if (!printRef.current || busy) return;
-    setBusy("image");
-    try {
-      const { default: html2canvas } = await import("html2canvas");
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true,
-      });
-      const link = document.createElement("a");
-      link.download = `${fileBase}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    } catch (err) {
-      alert("產生圖片失敗：" + (err.message || err));
-    } finally {
-      setBusy(null);
-    }
+  // Render the print HTML once, then html2canvas → PNG. Show that PNG as
+  // the actual preview so the user sees exactly what will be exported.
+  // Same image is reused for the 圖片 download.
+  useEffect(() => {
+    let cancelled = false;
+    const generate = async () => {
+      try {
+        // small delay so the hidden Page mounts + fonts settle
+        await new Promise((r) => setTimeout(r, 100));
+        if (!printRef.current || cancelled) return;
+        const { default: html2canvas } = await import("html2canvas");
+        const canvas = await html2canvas(printRef.current, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          logging: false,
+        });
+        if (cancelled) return;
+        setPreviewUrl(canvas.toDataURL("image/png"));
+      } catch (err) {
+        if (!cancelled) setPreviewError(err.message || String(err));
+      }
+    };
+    generate();
+    return () => { cancelled = true; };
+  }, [record.id]);
+
+  const downloadImage = () => {
+    if (!previewUrl) return;
+    triggerDownload(previewUrl, `${fileBase}.png`);
   };
 
   const downloadWord = () => {
@@ -67,11 +80,9 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
         `</head><body>${inner}</body></html>`;
       const blob = new Blob(["﻿", html], { type: "application/msword" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${fileBase}.doc`;
-      a.click();
-      URL.revokeObjectURL(url);
+      triggerDownload(url, `${fileBase}.doc`);
+      // Revoke a bit later so iOS Safari has time to start the download
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch (err) {
       alert("產生 Word 失敗：" + (err.message || err));
     } finally {
@@ -197,21 +208,74 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", background: "#f3f3f3", padding: 20 }}>
-          <Page
-            record={record}
-            cust={cust}
-            kind={kind}
-            currency={currency}
-            items={items}
-            addOns={addOns}
-            breakdown={b}
-            titleZh={titleZh}
-            docNo={docNo}
-            docDate={docDate}
-            printRef={printRef}
-          />
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            background: "#f3f3f3",
+            padding: 20,
+            textAlign: "center",
+          }}
+        >
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt="預覽"
+              style={{
+                maxWidth: "100%",
+                height: "auto",
+                background: "#fff",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+                borderRadius: 4,
+              }}
+            />
+          ) : previewError ? (
+            <div style={{ padding: 40, color: "#DC2626", fontSize: 13 }}>
+              產生預覽失敗：{previewError}
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: 80,
+                color: T.textTertiary,
+                fontSize: 13,
+                fontFamily: T.font,
+              }}
+            >
+              產生預覽中…
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Hidden source for html2canvas / window.print(). Positioned
+          off-screen with opacity so it renders but isn't visible. */}
+      <div
+        aria-hidden
+        className="qpv-source"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: 760,
+          opacity: 0,
+          pointerEvents: "none",
+          zIndex: -1,
+        }}
+      >
+        <Page
+          record={record}
+          cust={cust}
+          kind={kind}
+          currency={currency}
+          items={items}
+          addOns={addOns}
+          breakdown={b}
+          titleZh={titleZh}
+          docNo={docNo}
+          docDate={docDate}
+          printRef={printRef}
+        />
       </div>
 
       <style>{`
@@ -219,7 +283,17 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
           @page { size: A4; margin: 14mm; }
           body * { visibility: hidden; }
           .qpv-print, .qpv-print * { visibility: visible; }
+          /* Lift the off-screen source back to the page for printing */
+          .qpv-source {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: auto !important;
+            position: static !important;
+          }
           .qpv-print {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: auto !important;
             position: absolute;
             left: 0;
             top: 0;
@@ -595,4 +669,20 @@ function Td({
       {children}
     </td>
   );
+}
+
+// iOS Safari sometimes ignores `<a download>` for blob: URLs unless the
+// anchor is in the DOM at click time. Append → click → remove.
+function triggerDownload(href, filename) {
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = filename;
+  a.target = "_self";
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    try { document.body.removeChild(a); } catch {}
+  }, 100);
 }
