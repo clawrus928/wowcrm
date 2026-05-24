@@ -72,12 +72,14 @@ jobs:
                 environment:
                   JWT_SECRET: ${JWT_SECRET}
                   DEFAULT_PASSWORD: ${DEFAULT_PASSWORD}
+                  API_KEY: ${API_KEY}
             YAML
 
             # Write .env from GitHub secrets
             cat > .env <<EOF
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             DEFAULT_PASSWORD=${{ secrets.DEFAULT_PASSWORD }}
+            API_KEY=${{ secrets.API_KEY }}
             EOF
             chmod 600 .env
 
