@@ -26,6 +26,7 @@ const HOST = process.env.HOST || "0.0.0.0";
 const DB_PATH = process.env.DB_PATH || "/data/wowcrm.db";
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 const DEFAULT_PASSWORD = process.env.DEFAULT_PASSWORD || "wowcrm";
+const API_KEY = process.env.API_KEY || "";
 const STATIC_DIR = process.env.STATIC_DIR || resolve(__dirname, "../../dist");
 
 const ID_PREFIX = {
@@ -52,7 +53,17 @@ const app = Fastify({ logger: { level: "info" } });
 await app.register(cors, { origin: true });
 await app.register(jwt, { secret: JWT_SECRET });
 
+// Auth middleware. Supports two modes:
+// 1. JWT Bearer token (from /api/auth/login)
+// 2. API key via X-API-Key header (for agent / automation use — admin mode,
+//    bypasses per-user ownership checks)
 const auth = async (req, reply) => {
+  // API key path — admin, no user scoping
+  const apiKey = req.headers["x-api-key"];
+  if (apiKey && API_KEY && apiKey === API_KEY) {
+    req.user = { sub: "api", name: "API Agent", isApiKey: true };
+    return;
+  }
   try {
     await req.jwtVerify();
   } catch {
@@ -109,7 +120,7 @@ for (const entity of ENTITIES) {
   app.patch(`/api/${entity}/:id`, { preHandler: auth }, async (req, reply) => {
     const existing = getRecord(db, entity, req.params.id);
     if (!existing) return reply.code(404).send({ error: "Not found" });
-    if (existing.owner && existing.owner !== req.user.sub) {
+    if (existing.owner && existing.owner !== req.user.sub && !req.user.isApiKey) {
       return reply.code(403).send({ error: "只有負責人可以修改" });
     }
     return updateRecord(db, entity, req.params.id, req.body || {});
@@ -118,7 +129,7 @@ for (const entity of ENTITIES) {
   app.delete(`/api/${entity}/:id`, { preHandler: auth }, async (req, reply) => {
     const existing = getRecord(db, entity, req.params.id);
     if (!existing) return reply.code(404).send({ error: "Not found" });
-    if (existing.owner && existing.owner !== req.user.sub) {
+    if (existing.owner && existing.owner !== req.user.sub && !req.user.isApiKey) {
       return reply.code(403).send({ error: "只有負責人可以刪除" });
     }
     deleteRecord(db, entity, req.params.id);
