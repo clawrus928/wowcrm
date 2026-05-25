@@ -1,0 +1,103 @@
+name: Agent Task
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  process:
+    if: github.event.label.name == 'agent-task'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Install server deps
+        run: cd server && npm install
+
+      - name: Run Claude Code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Claude Code CLI processes the issue and makes changes
+          npx -y @anthropic-ai/claude-code --print \
+            "You are working on the WOW CRM project. Read CLAUDE.md and PROJECT.md for context.
+
+          Implement the following request. Make clean, focused changes.
+          After making changes, run 'npm run build' to verify the build passes.
+          If build fails, fix the errors before finishing.
+
+          ## Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+
+          ${{ github.event.issue.body }}" \
+            --allowedTools "Edit,Write,Bash,Read"
+
+      - name: Check for changes
+        id: check
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes were made"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git diff --cached --stat
+          fi
+
+      - name: Create PR
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="agent/issue-${{ github.event.issue.number }}"
+          git config user.name "WOW CRM Agent"
+          git config user.email "agent@wowcrm.wowmac.com"
+          git checkout -b "$BRANCH"
+          git commit -m "Agent: ${{ github.event.issue.title }} (#${{ github.event.issue.number }})"
+          git push origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --title "Agent: ${{ github.event.issue.title }}" \
+            --body "Automated implementation for #${{ github.event.issue.number }}.
+
+          > $(echo '${{ github.event.issue.body }}' | head -c 500)
+
+          ---
+          _This PR was created automatically by Claude Code via the agent-task workflow._" \
+            --base master)
+          echo "PR created: $PR_URL"
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "✅ 已完成實作，PR 已開好：$PR_URL
+
+          請 review 後合併。合併後會自動部署到 EC2。"
+
+      - name: Comment if no changes
+        if: steps.check.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "ℹ️ Claude Code 分析了這個請求，但沒有產生任何程式碼改動。
+
+          可能的原因：
+          - 請求已在現有程式碼中實現
+          - 請求描述不夠具體，無法產生改動
+          - 需要更多背景資訊
+
+          請補充細節後重新加上 \`agent-task\` label。"
