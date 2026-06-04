@@ -98,6 +98,24 @@ export function createRecord(db, entity, id, data) {
   return getRecord(db, entity, id);
 }
 
+// Bulk-create many records of one entity in a single transaction. Each item
+// in `records` must already carry its own `id`. The whole batch commits or
+// rolls back together — if any insert fails (e.g. duplicate id) nothing is
+// written. Returns the freshly-stored records in input order.
+export function createRecords(db, entity, records) {
+  const now = new Date().toISOString();
+  const insert = db.prepare(
+    "INSERT INTO records (id, entity, data, owner, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+  );
+  const tx = db.transaction((rows) => {
+    for (const data of rows) {
+      insert.run(data.id, entity, JSON.stringify(data), data.owner || null, now, now);
+    }
+  });
+  tx(records);
+  return records.map((d) => getRecord(db, entity, d.id));
+}
+
 export function updateRecord(db, entity, id, patch) {
   const existing = getRecord(db, entity, id);
   if (!existing) return null;

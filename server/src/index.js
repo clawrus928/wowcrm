@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import {
   ENTITIES,
   createRecord,
+  createRecords,
   deleteRecord,
   findUser,
   getRecord,
@@ -114,6 +115,36 @@ for (const entity of ENTITIES) {
     } catch (err) {
       app.log.error(err);
       return reply.code(400).send({ error: "Create failed" });
+    }
+  });
+
+  // Bulk import — one transaction, all-or-nothing. Accepts either a raw
+  // array body or { items: [...] }. Same per-item defaults as single POST
+  // (auto id / owner / created). Static "bulk" segment is matched ahead of
+  // the ":id" param routes, so there's no collision.
+  app.post(`/api/${entity}/bulk`, { preHandler: auth }, async (req, reply) => {
+    const body = req.body || {};
+    const items = Array.isArray(body) ? body : body.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      return reply.code(400).send({ error: "items 必須是非空陣列" });
+    }
+    if (items.length > 500) {
+      return reply.code(400).send({ error: "單次最多匯入 500 筆" });
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const prepared = items.map((it) => {
+      const data = { ...it };
+      data.id = data.id || newId(entity);
+      if (!data.owner) data.owner = req.user.sub;
+      if (!data.created) data.created = today;
+      return data;
+    });
+    try {
+      const created = createRecords(db, entity, prepared);
+      return { count: created.length, created };
+    } catch (err) {
+      app.log.error(err);
+      return reply.code(400).send({ error: "批次匯入失敗（已全部回滾）" });
     }
   });
 
