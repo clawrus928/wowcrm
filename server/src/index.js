@@ -51,6 +51,41 @@ function newId(entity) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+// ── 登入限流 ───────────────────────────────────────────
+// 服務在 nginx 後面,req.ip 全是 127.0.0.1,所以按「帳號」限流而非 IP
+// (否則會整個辦公室共用一個 IP 被一起鎖死)。純記憶體、無依賴。
+const LOGIN_MAX_FAILS = 8; // 視窗內最多錯幾次
+const LOGIN_WINDOW_MS = 10 * 60 * 1000; // 計次視窗 10 分鐘
+const LOGIN_BLOCK_MS = 10 * 60 * 1000; // 觸發後封鎖 10 分鐘
+const loginAttempts = new Map(); // userId -> { fails, firstAt, blockedUntil }
+
+function loginBlockedSeconds(userId) {
+  const rec = loginAttempts.get(userId);
+  if (rec?.blockedUntil > Date.now()) {
+    return Math.ceil((rec.blockedUntil - Date.now()) / 1000);
+  }
+  return 0;
+}
+function recordLoginFail(userId) {
+  const now = Date.now();
+  let rec = loginAttempts.get(userId);
+  if (!rec || now - rec.firstAt > LOGIN_WINDOW_MS) {
+    rec = { fails: 0, firstAt: now, blockedUntil: 0 };
+  }
+  rec.fails += 1;
+  if (rec.fails >= LOGIN_MAX_FAILS) rec.blockedUntil = now + LOGIN_BLOCK_MS;
+  loginAttempts.set(userId, rec);
+  // 輕量防膨脹:超過上限時清掉已過期的紀錄
+  if (loginAttempts.size > 2000) {
+    for (const [k, v] of loginAttempts) {
+      if (v.blockedUntil < now && now - v.firstAt > LOGIN_WINDOW_MS) loginAttempts.delete(k);
+    }
+  }
+}
+function clearLoginFail(userId) {
+  loginAttempts.delete(userId);
+}
+
 const db = openDb(DB_PATH);
 migrate(db, DEFAULT_PASSWORD);
 
@@ -85,10 +120,23 @@ app.get("/api/auth/users", async () => listUsers(db));
 app.post("/api/auth/login", async (req, reply) => {
   const { userId, password } = req.body || {};
   if (!userId || !password) return reply.code(400).send({ error: "Missing credentials" });
+  const wait = loginBlockedSeconds(userId);
+  if (wait > 0) {
+    return reply
+      .code(429)
+      .send({ error: `嘗試次數過多，請約 ${Math.ceil(wait / 60)} 分鐘後再試` });
+  }
   const user = findUser(db, userId);
-  if (!user) return reply.code(401).send({ error: "帳號不存在" });
+  if (!user) {
+    recordLoginFail(userId);
+    return reply.code(401).send({ error: "帳號不存在" });
+  }
   const ok = bcrypt.compareSync(password, user.password_hash);
-  if (!ok) return reply.code(401).send({ error: "密碼不正確" });
+  if (!ok) {
+    recordLoginFail(userId);
+    return reply.code(401).send({ error: "密碼不正確" });
+  }
+  clearLoginFail(userId);
   const token = app.jwt.sign({ sub: user.id, name: user.name }, { expiresIn: "30d" });
   return { token, user: { id: user.id, name: user.name } };
 });
