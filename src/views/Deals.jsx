@@ -1,10 +1,20 @@
 import { useMemo, useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import {
   DEAL_STATUSES,
   PRODUCTS,
   REPS,
 } from "../constants.js";
-import { effectiveDealAmount, fmt, getCustomer, getProduct, getRep } from "../utils.js";
+import {
+  acceptedQuoteSums,
+  dealAmount,
+  effectiveDealAmount,
+  fmt,
+  getCustomer,
+  getProduct,
+  getRep,
+  indexById,
+} from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -53,6 +63,9 @@ export function DealsView({
     onConsumeSeed?.();
   }
 
+  const customerById = useMemo(() => indexById(customers), [customers]);
+  const acceptedSums = useMemo(() => acceptedQuoteSums(quotes), [quotes]);
+
   const filtered = useMemo(() => {
     let d = deals;
     if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
@@ -63,10 +76,10 @@ export function DealsView({
       d = d.filter(
         (x) =>
           x.title.includes(search) ||
-          (getCustomer(x.customerId, customers)?.name || "").includes(search)
+          (customerById.get(x.customerId)?.name || "").includes(search)
       );
     return d;
-  }, [deals, customers, tab, fProduct, fStatus, search]);
+  }, [deals, customerById, tab, fProduct, fStatus, search, currentUser]);
 
   const current = drawer?.id ? deals.find((d) => d.id === drawer.id) : null;
 
@@ -79,7 +92,7 @@ export function DealsView({
     {
       key: "customer",
       label: "關聯客戶",
-      render: (r) => getCustomer(r.customerId, customers)?.name || "—",
+      render: (r) => customerById.get(r.customerId)?.name || "—",
     },
     {
       key: "product",
@@ -102,7 +115,7 @@ export function DealsView({
       label: "金額",
       mono: true,
       render: (r) => {
-        const eff = effectiveDealAmount(r, quotes);
+        const eff = dealAmount(r, acceptedSums);
         const derived = (r.amount == null || r.amount === "" || r.amount === 0) && eff > 0;
         return (
           <span style={{ fontWeight: 600, color: T.text }}>
@@ -196,7 +209,7 @@ export function DealsView({
               await store.removeItem("deals", current.id);
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "刪除失敗");
+              toast(err.message || "刪除失敗");
             }
           }}
         />
@@ -219,7 +232,7 @@ export function DealsView({
                 setDrawer({ mode: "detail", id: created.id });
               }
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />

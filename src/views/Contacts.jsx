@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import { REPS } from "../constants.js";
-import { getCustomer, getRep } from "../utils.js";
+import { getCustomer, getRep, indexById } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
@@ -36,6 +37,8 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
     onConsumeSeed?.();
   }
 
+  const customerById = useMemo(() => indexById(customers), [customers]);
+
   const filtered = useMemo(() => {
     let d = contacts;
     if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
@@ -45,12 +48,12 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
       d = d.filter(
         (x) =>
           x.name.includes(search) ||
-          (getCustomer(x.customerId, customers)?.name || "").includes(search) ||
+          (customerById.get(x.customerId)?.name || "").includes(search) ||
           x.email.toLowerCase().includes(q)
       );
     }
     return d;
-  }, [contacts, customers, tab, search]);
+  }, [contacts, customerById, tab, search, currentUser]);
 
   const current = drawer?.id ? contacts.find((c) => c.id === drawer.id) : null;
 
@@ -63,7 +66,7 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
     {
       key: "customer",
       label: "商戶名稱",
-      render: (r) => getCustomer(r.customerId, customers)?.name || "—",
+      render: (r) => customerById.get(r.customerId)?.name || "—",
     },
     { key: "role", label: "職位" },
     { key: "phone", label: "座機", mono: true },
@@ -114,7 +117,7 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
               await store.removeItem("contacts", current.id);
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "刪除失敗");
+              toast(err.message || "刪除失敗");
             }
           }}
         />
@@ -136,7 +139,7 @@ export function ContactsView({ store, drawerSeed, onConsumeSeed }) {
                 setDrawer({ mode: "detail", id: created.id });
               }
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />

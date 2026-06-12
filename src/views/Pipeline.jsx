@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import { PRODUCTS } from "../constants.js";
 import { effectiveDealAmount, fmt, getCustomer, getRep } from "../utils.js";
 import { T } from "../theme.js";
@@ -21,7 +22,7 @@ export function PipelineView({ store, onOpenSupplier }) {
     try {
       await store.moveDealStage(id, stage);
     } catch (err) {
-      alert(err.message || "移動失敗");
+      toast(err.message || "移動失敗");
     }
   };
 
@@ -154,7 +155,7 @@ export function PipelineView({ store, onOpenSupplier }) {
                 try {
                   await store.moveDealStage(id, s);
                 } catch (err) {
-                  alert(err.message || "移動失敗");
+                  toast(err.message || "移動失敗");
                 }
               }}
               quotes={quotes}

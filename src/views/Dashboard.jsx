@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { PRODUCTS, REPS } from "../constants.js";
-import { effectiveDealAmount, fmt, getRep } from "../utils.js";
+import { acceptedQuoteSums, dealAmount, groupBy, fmt, getRep } from "../utils.js";
 import { T } from "../theme.js";
 
 function Card({ title, children, accent }) {
@@ -103,25 +103,24 @@ export function DashboardView({ store }) {
   const { leads, customers, deals, contracts, quotes, channels, suppliers } = store;
 
   const stats = useMemo(() => {
+    // Build indexes once, then look up — avoids O(channels/suppliers × all
+    // records × quotes) re-scans that grow with data volume.
+    const acc = acceptedQuoteSums(quotes);
+    const amt = (d) => dealAmount(d, acc);
+
     const activeDeals = deals.filter((d) => d.status === "進行中");
     const wonDeals = deals.filter((d) => d.status === "已成交");
 
+    const activeByProduct = groupBy(activeDeals, (d) => d.product);
     const productSummary = PRODUCTS.map((p) => {
-      const ds = activeDeals.filter((d) => d.product === p.id);
-      return {
-        ...p,
-        count: ds.length,
-        amount: ds.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0),
-      };
+      const ds = activeByProduct.get(p.id) || [];
+      return { ...p, count: ds.length, amount: ds.reduce((s, d) => s + amt(d), 0) };
     });
 
+    const activeByOwner = groupBy(activeDeals, (d) => d.owner);
     const ownerSummary = REPS.map((r) => {
-      const ds = activeDeals.filter((d) => d.owner === r.id);
-      return {
-        ...r,
-        count: ds.length,
-        amount: ds.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0),
-      };
+      const ds = activeByOwner.get(r.id) || [];
+      return { ...r, count: ds.length, amount: ds.reduce((s, d) => s + amt(d), 0) };
     }).sort((a, b) => b.amount - a.amount);
 
     const newLeadsThisMonth = leads.filter((l) => isThisMonth(l.created)).length;
@@ -131,29 +130,31 @@ export function DashboardView({ store }) {
       ? Math.round((convertedLeads / leads.length) * 100)
       : 0;
 
-    const totalPipeline = activeDeals.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0);
-    const totalWon = wonDeals.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0);
+    const totalPipeline = activeDeals.reduce((s, d) => s + amt(d), 0);
+    const totalWon = wonDeals.reduce((s, d) => s + amt(d), 0);
+
+    const dealsByCustomer = groupBy(deals, (d) => d.customerId);
+    const contractsByCustomer = groupBy(contracts || [], (k) => k.customerId);
+    const leadsByChannel = groupBy(leads, (l) => l.channelId);
+    const customersByChannel = groupBy(customers, (c) => c.channelId);
 
     const channelSummary = (channels || [])
       .map((ch) => {
-        const chLeads = leads.filter((l) => l.channelId === ch.id);
-        const chCustIds = new Set(
-          customers.filter((c) => c.channelId === ch.id).map((c) => c.id)
-        );
+        const chLeads = leadsByChannel.get(ch.id) || [];
+        const chCustIds = new Set((customersByChannel.get(ch.id) || []).map((c) => c.id));
         for (const l of chLeads) {
           if (l.convertedCustomerId) chCustIds.add(l.convertedCustomerId);
         }
-        const chDeals = deals.filter((d) => chCustIds.has(d.customerId));
-        const won = chDeals
-          .filter((d) => d.status === "已成交")
-          .reduce((s, d) => s + effectiveDealAmount(d, quotes), 0);
-        const chContracts = (contracts || []).filter((k) =>
-          chCustIds.has(k.customerId)
-        );
-        const commission = chContracts.reduce(
-          (s, k) => s + (Number(k.internalCommissionAmount) || 0),
-          0
-        );
+        let won = 0;
+        let commission = 0;
+        for (const id of chCustIds) {
+          for (const d of dealsByCustomer.get(id) || []) {
+            if (d.status === "已成交") won += amt(d);
+          }
+          for (const k of contractsByCustomer.get(id) || []) {
+            commission += Number(k.internalCommissionAmount) || 0;
+          }
+        }
         return {
           ...ch,
           leadCount: chLeads.length,
@@ -164,20 +165,29 @@ export function DashboardView({ store }) {
       })
       .sort((a, b) => b.wonAmount - a.wonAmount || b.leadCount - a.leadCount);
 
+    const dealsBySupplier = groupBy(deals, (d) => d.supplierId);
     const supplierSummary = (suppliers || [])
       .map((sp) => {
-        const spDeals = deals.filter((d) => d.supplierId === sp.id);
-        const active = spDeals.filter((d) => d.status === "進行中");
-        const won = spDeals.filter((d) => d.status === "已成交");
-        return {
-          ...sp,
-          dealCount: spDeals.length,
-          activeAmount: active.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0),
-          wonAmount: won.reduce((s, d) => s + effectiveDealAmount(d, quotes), 0),
-        };
+        const spDeals = dealsBySupplier.get(sp.id) || [];
+        let activeAmount = 0;
+        let wonAmount = 0;
+        for (const d of spDeals) {
+          if (d.status === "進行中") activeAmount += amt(d);
+          else if (d.status === "已成交") wonAmount += amt(d);
+        }
+        return { ...sp, dealCount: spDeals.length, activeAmount, wonAmount };
       })
       .filter((sp) => sp.dealCount > 0)
       .sort((a, b) => b.activeAmount + b.wonAmount - (a.activeAmount + a.wonAmount));
+
+    // 階段分佈計數（product|stage → count），render 時 O(1) 查表
+    const stageCounts = new Map();
+    for (const d of activeDeals) {
+      const key = d.product + "|" + d.stage;
+      stageCounts.set(key, (stageCounts.get(key) || 0) + 1);
+    }
+
+    const productMax = Math.max(1, ...productSummary.map((x) => x.amount));
 
     return {
       productSummary,
@@ -188,9 +198,12 @@ export function DashboardView({ store }) {
       wonDeals,
       newLeadsThisMonth,
       newCustomersThisMonth,
+      convertedLeads,
       conversionRate,
       totalPipeline,
       totalWon,
+      stageCounts,
+      productMax,
     };
   }, [leads, customers, deals, contracts, quotes, channels, suppliers]);
 
@@ -249,7 +262,7 @@ export function DashboardView({ store }) {
           <Stat value={stats.newCustomersThisMonth} label="筆" color="#2563EB" />
         </Card>
         <Card title="線索轉化率">
-          <Stat value={`${stats.conversionRate}%`} label={`已轉 ${leads.filter((l) => l.status === "已轉客戶").length} / ${leads.length}`} color="#7C3AED" />
+          <Stat value={`${stats.conversionRate}%`} label={`已轉 ${stats.convertedLeads} / ${leads.length}`} color="#7C3AED" />
         </Card>
         <Card title="合同 / 報價">
           <Stat value={`${contracts.length} / ${quotes.length}`} label="合同 / 報價" />
@@ -265,12 +278,11 @@ export function DashboardView({ store }) {
       >
         <Card title="產品線 Pipeline">
           {stats.productSummary.map((p) => {
-            const max = Math.max(1, ...stats.productSummary.map((x) => x.amount));
             return (
               <Bar
                 key={p.id}
                 value={p.amount}
-                max={max}
+                max={stats.productMax}
                 color={p.color}
                 label={`${p.icon} ${p.name}`}
                 sub={`${p.count} 筆 · ${fmt(p.amount)}`}
@@ -424,9 +436,7 @@ export function DashboardView({ store }) {
               </div>
               <div style={{ display: "flex", gap: 4 }}>
                 {p.stages.map((stage) => {
-                  const c = stats.activeDeals.filter(
-                    (d) => d.product === p.id && d.stage === stage
-                  ).length;
+                  const c = stats.stageCounts.get(p.id + "|" + stage) || 0;
                   return (
                     <div
                       key={stage}

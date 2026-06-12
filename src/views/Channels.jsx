@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import {
   CHANNEL_STATUSES,
   CHANNEL_TYPES,
   REPS,
 } from "../constants.js";
-import { effectiveDealAmount, fmt, getRep } from "../utils.js";
+import { acceptedQuoteSums, dealAmount, groupBy, indexById, fmt, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -30,36 +31,50 @@ const EMPTY_CHANNEL = {
   owner: null,
 };
 
-function getChannelStats(channel, leads, customers, deals, contracts, quotes) {
-  const channelLeads = leads.filter((l) => l.channelId === channel.id);
+// Build the shared indexes once, then reuse for every channel — turns the old
+// per-channel full-table scans into O(1) map lookups.
+function buildChannelIndex(leads, customers, deals, contracts, quotes) {
+  return {
+    acc: acceptedQuoteSums(quotes),
+    leadsByChannel: groupBy(leads, (l) => l.channelId),
+    customersByChannel: groupBy(customers, (c) => c.channelId),
+    customerById: indexById(customers),
+    dealsByCustomer: groupBy(deals, (d) => d.customerId),
+    contractsByCustomer: groupBy(contracts || [], (k) => k.customerId),
+  };
+}
+
+function getChannelStats(channel, idx) {
+  const channelLeads = idx.leadsByChannel.get(channel.id) || [];
   const channelCustomerIds = new Set(
-    customers.filter((c) => c.channelId === channel.id).map((c) => c.id)
+    (idx.customersByChannel.get(channel.id) || []).map((c) => c.id)
   );
-  const convertedFromLeads = channelLeads
-    .filter((l) => l.convertedCustomerId)
-    .map((l) => l.convertedCustomerId);
-  for (const id of convertedFromLeads) channelCustomerIds.add(id);
+  for (const l of channelLeads) {
+    if (l.convertedCustomerId) channelCustomerIds.add(l.convertedCustomerId);
+  }
 
-  const channelCustomers = customers.filter((c) => channelCustomerIds.has(c.id));
-  const channelDeals = deals.filter((d) => channelCustomerIds.has(d.customerId));
-  const wonDeals = channelDeals.filter((d) => d.status === "已成交");
-  const wonAmount = wonDeals.reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
-  const activeAmount = channelDeals
-    .filter((d) => d.status === "進行中")
-    .reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
-
-  const channelContracts = (contracts || []).filter((k) =>
-    channelCustomerIds.has(k.customerId)
-  );
-  const commission = channelContracts.reduce(
-    (sum, k) => sum + (Number(k.internalCommissionAmount) || 0),
-    0
-  );
+  const channelCustomers = [];
+  let wonAmount = 0;
+  let activeAmount = 0;
+  let commission = 0;
+  let dealCount = 0;
+  for (const id of channelCustomerIds) {
+    const cust = idx.customerById.get(id);
+    if (cust) channelCustomers.push(cust);
+    for (const d of idx.dealsByCustomer.get(id) || []) {
+      dealCount += 1;
+      if (d.status === "已成交") wonAmount += dealAmount(d, idx.acc);
+      else if (d.status === "進行中") activeAmount += dealAmount(d, idx.acc);
+    }
+    for (const k of idx.contractsByCustomer.get(id) || []) {
+      commission += Number(k.internalCommissionAmount) || 0;
+    }
+  }
 
   return {
     leadCount: channelLeads.length,
     customerCount: channelCustomers.length,
-    dealCount: channelDeals.length,
+    dealCount,
     wonAmount,
     activeAmount,
     commission,
@@ -93,7 +108,15 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
           (x.contact || "").includes(search)
       );
     return d;
-  }, [channels, tab, fStatus, fType, search]);
+  }, [channels, tab, fStatus, fType, search, currentUser]);
+
+  // Precompute every channel's stats once (not per table row).
+  const channelStatsById = useMemo(() => {
+    const idx = buildChannelIndex(leads, customers, deals, contracts, quotes);
+    const m = new Map();
+    for (const ch of channels) m.set(ch.id, getChannelStats(ch, idx));
+    return m;
+  }, [channels, leads, customers, deals, contracts, quotes]);
 
   const current = drawer?.id ? channels.find((c) => c.id === drawer.id) : null;
 
@@ -116,16 +139,15 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
       key: "leads",
       label: "帶入線索",
       mono: true,
-      render: (r) =>
-        leads.filter((l) => l.channelId === r.id).length || "—",
+      render: (r) => channelStatsById.get(r.id)?.leadCount || "—",
     },
     {
       key: "wonAmount",
       label: "成交金額",
       mono: true,
       render: (r) => {
-        const stats = getChannelStats(r, leads, customers, deals, contracts, quotes);
-        return stats.wonAmount > 0 ? (
+        const stats = channelStatsById.get(r.id);
+        return stats?.wonAmount > 0 ? (
           <span style={{ fontWeight: 600, color: "#059669" }}>
             {fmt(stats.wonAmount)}
           </span>
@@ -219,7 +241,7 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
               await store.removeItem("channels", current.id);
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "刪除失敗");
+              toast(err.message || "刪除失敗");
             }
           }}
         />
@@ -240,7 +262,7 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
                 setDrawer({ mode: "detail", id: created.id });
               }
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />
@@ -291,7 +313,10 @@ function ChannelDetailDrawer({
   onEdit,
   onDelete,
 }) {
-  const stats = getChannelStats(channel, leads, customers, deals, contracts, quotes);
+  const stats = useMemo(
+    () => getChannelStats(channel, buildChannelIndex(leads, customers, deals, contracts, quotes)),
+    [channel, leads, customers, deals, contracts, quotes]
+  );
   const conversionRate =
     stats.leadCount > 0
       ? Math.round((stats.customerCount / stats.leadCount) * 100)

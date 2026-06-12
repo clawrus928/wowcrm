@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import {
   PRODUCTS,
   REPS,
@@ -207,7 +208,7 @@ export function SuppliersView({
               await store.removeItem("suppliers", current.id);
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "刪除失敗");
+              toast(err.message || "刪除失敗");
             }
           }}
         />
@@ -232,7 +233,7 @@ export function SuppliersView({
                 setDrawer({ mode: "detail", id: created.id });
               }
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />

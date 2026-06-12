@@ -115,6 +115,38 @@ Content-Type: application/json
 
 回應：`200 OK` + 完整 record
 
+### 批次匯入（bulk）⭐ 推薦給 Agent 大量入資料
+
+```
+POST /api/leads/bulk
+Content-Type: application/json
+
+{
+  "items": [
+    { "name": "張大富", "company": "老闆茶餐廳", "phone": "6633-9999", "owner": "u1" },
+    { "name": "李小芳", "company": "新街美食",  "phone": "6622-1111", "owner": "u4" }
+  ]
+}
+```
+
+- 也接受**直接傳陣列**當 body（不包 `items`）：`[{...}, {...}]`
+- 單次最多 **500 筆**
+- 每筆的 `id` / `owner` / `created` 預設規則跟單筆 `POST` 一樣（不填自動補）
+- **原子性**：整批在同一個 SQLite 交易裡，**全部成功或全部回滾**。任何一筆失敗（例如 `id` 重複）→ 整批不寫入，回 `400`，不會留下半套資料。
+
+回應：`200 OK`
+```json
+{
+  "count": 2,
+  "created": [
+    { "id": "l_abc123", "name": "張大富", "owner": "u1", "created": "2026-06-04", ... },
+    { "id": "l_def456", "name": "李小芳", "owner": "u4", "created": "2026-06-04", ... }
+  ]
+}
+```
+
+> 比起逐筆 `POST` 迴圈，`bulk` 一個請求搞定、速度快、且不會因中途失敗而留下不完整資料。所有 entity 都支援（`/api/{entity}/bulk`）。
+
 ### 更新（部分更新）
 
 ```
@@ -201,6 +233,24 @@ GET /api/health
 ```
 
 回應：`{"ok": true, "ts": "2026-05-20T12:00:00.000Z"}`
+
+### 操作紀錄 audit log
+
+```
+GET /api/_audit?entity=customers&recordId=c_xxx&limit=100
+```
+
+- 三個 query 都可選；`limit` 上限 500
+- 記錄每筆 create / bulk_create / update / delete / stage / convert，含 `actor`（user id 或 `api`）、`ts`、`changes`
+- `delete` 會保存被刪紀錄的完整快照（誤刪可從這裡找回）
+
+回應：
+```json
+[
+  {"id": 12, "ts": "2026-06-04T...", "actor": "u4", "action": "update",
+   "entity": "deals", "recordId": "d_xxx", "changes": {"status": "已成交"}}
+]
+```
 
 ---
 
@@ -454,13 +504,20 @@ curl -s -X POST $API/quotes $H -d '{
 }'
 ```
 
-### 3. 批次匯入客戶
+### 3. 批次匯入客戶（一個請求，原子式）
 
 ```bash
-for row in "${customers[@]}"; do
-  curl -s -X POST $API/customers $H -d "$row"
-done
+curl -s -X POST $API/customers/bulk $H -d '{
+  "items": [
+    {"name": "新街美食", "industry": "餐飲", "address": "澳門新馬路", "owner": "u4"},
+    {"name": "老闆茶餐廳", "industry": "餐飲", "address": "澳門氹仔",   "owner": "u1"},
+    {"name": "鴻運電器", "industry": "零售", "address": "澳門高士德",   "owner": "u5"}
+  ]
+}'
 ```
+
+回 `{"count": 3, "created": [...]}`。整批同一交易，任何一筆失敗會全部回滾。
+比逐筆 `POST` 迴圈快、且不會留下半套資料。
 
 ---
 
@@ -476,6 +533,8 @@ done
 ## 注意事項
 
 - API Key 擁有**完全管理員權限**（讀寫所有 entity、跳過 owner check）
+- 所有寫入都會**驗證**：必填欄位缺失或列舉值（status / source / type / product / stage…）不合法 → `400`，並回傳具體錯誤訊息。`bulk` 只要有一筆不合法就整批拒絕、不寫入。列舉值請用各 schema 區塊列出的繁中原文。
+- 所有寫入都會記進 audit log，可用 `GET /api/_audit` 查（見上方）
 - 不要把 API Key 存在前端 / 公開的地方
 - 每個請求回應都是 JSON
 - 日期格式：`YYYY-MM-DD`

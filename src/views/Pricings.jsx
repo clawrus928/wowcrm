@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import {
   CURRENCIES,
   DEFAULT_CURRENCY,
@@ -195,7 +196,7 @@ export function PricingsView({ store, drawerSeed, onConsumeSeed }) {
               await store.removeItem("pricings", current.id);
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "刪除失敗");
+              toast(err.message || "刪除失敗");
             }
           }}
         />
@@ -220,7 +221,7 @@ export function PricingsView({ store, drawerSeed, onConsumeSeed }) {
                 setDrawer({ mode: "detail", id: created.id });
               }
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />

@@ -54,8 +54,20 @@ export function migrate(db, defaultPassword) {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT NOT NULL,
+      actor TEXT,
+      action TEXT NOT NULL,
+      entity TEXT NOT NULL,
+      record_id TEXT,
+      changes TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_records_entity ON records(entity);
     CREATE INDEX IF NOT EXISTS idx_records_owner ON records(owner);
+    CREATE INDEX IF NOT EXISTS idx_audit_record ON audit(entity, record_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit(ts);
   `);
 
   // Seed users on first run
@@ -98,6 +110,24 @@ export function createRecord(db, entity, id, data) {
   return getRecord(db, entity, id);
 }
 
+// Bulk-create many records of one entity in a single transaction. Each item
+// in `records` must already carry its own `id`. The whole batch commits or
+// rolls back together — if any insert fails (e.g. duplicate id) nothing is
+// written. Returns the freshly-stored records in input order.
+export function createRecords(db, entity, records) {
+  const now = new Date().toISOString();
+  const insert = db.prepare(
+    "INSERT INTO records (id, entity, data, owner, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+  );
+  const tx = db.transaction((rows) => {
+    for (const data of rows) {
+      insert.run(data.id, entity, JSON.stringify(data), data.owner || null, now, now);
+    }
+  });
+  tx(records);
+  return records.map((d) => getRecord(db, entity, d.id));
+}
+
 export function updateRecord(db, entity, id, patch) {
   const existing = getRecord(db, entity, id);
   if (!existing) return null;
@@ -129,4 +159,75 @@ export function findUser(db, id) {
 function rowToRecord(row) {
   const data = JSON.parse(row.data);
   return { ...data, id: row.id, owner: row.owner ?? data.owner };
+}
+
+// ── Audit log ─────────────────────────────────────────
+// Records who changed what, when. Auditing must NEVER break the underlying
+// operation, so every write is wrapped in try/catch.
+
+export function logAudit(db, { actor, action, entity, recordId, changes }) {
+  try {
+    db.prepare(
+      "INSERT INTO audit (ts, actor, action, entity, record_id, changes) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(
+      new Date().toISOString(),
+      actor || null,
+      action,
+      entity,
+      recordId || null,
+      changes === undefined ? null : JSON.stringify(changes)
+    );
+  } catch {
+    // swallow — never let auditing fail the real write
+  }
+}
+
+export function logAuditMany(db, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+  try {
+    const now = new Date().toISOString();
+    const stmt = db.prepare(
+      "INSERT INTO audit (ts, actor, action, entity, record_id, changes) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    const tx = db.transaction((items) => {
+      for (const r of items) {
+        stmt.run(
+          now,
+          r.actor || null,
+          r.action,
+          r.entity,
+          r.recordId || null,
+          r.changes === undefined ? null : JSON.stringify(r.changes)
+        );
+      }
+    });
+    tx(rows);
+  } catch {
+    // swallow
+  }
+}
+
+export function listAudit(db, { entity, recordId, limit = 100 } = {}) {
+  const clauses = [];
+  const params = [];
+  if (entity) {
+    clauses.push("entity = ?");
+    params.push(entity);
+  }
+  if (recordId) {
+    clauses.push("record_id = ?");
+    params.push(recordId);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const lim = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const rows = db
+    .prepare(
+      `SELECT id, ts, actor, action, entity, record_id AS recordId, changes
+       FROM audit ${where} ORDER BY id DESC LIMIT ?`
+    )
+    .all(...params, lim);
+  return rows.map((r) => ({
+    ...r,
+    changes: r.changes ? JSON.parse(r.changes) : null,
+  }));
 }
