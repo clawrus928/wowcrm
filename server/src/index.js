@@ -13,12 +13,16 @@ import {
   deleteRecord,
   findUser,
   getRecord,
+  listAudit,
   listEntity,
   listUsers,
+  logAudit,
+  logAuditMany,
   migrate,
   openDb,
   updateRecord,
 } from "./db.js";
+import { validateRecord, isValidStage } from "./validate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -110,8 +114,12 @@ for (const entity of ENTITIES) {
     const id = body.id || newId(entity);
     if (!body.owner) body.owner = req.user.sub;
     if (!body.created) body.created = new Date().toISOString().slice(0, 10);
+    const errors = validateRecord(entity, body, { partial: false });
+    if (errors.length) return reply.code(400).send({ error: errors.join("；") });
     try {
-      return createRecord(db, entity, id, { ...body, id });
+      const created = createRecord(db, entity, id, { ...body, id });
+      logAudit(db, { actor: req.user.sub, action: "create", entity, recordId: id, changes: created });
+      return created;
     } catch (err) {
       app.log.error(err);
       return reply.code(400).send({ error: "Create failed" });
@@ -139,8 +147,30 @@ for (const entity of ENTITIES) {
       if (!data.created) data.created = today;
       return data;
     });
+    // Validate the whole batch BEFORE the transaction — nothing is written
+    // unless every item passes.
+    const problems = [];
+    prepared.forEach((it, i) => {
+      const errs = validateRecord(entity, it, { partial: false });
+      if (errs.length) problems.push(`第 ${i + 1} 筆：${errs.join("、")}`);
+    });
+    if (problems.length) {
+      return reply
+        .code(400)
+        .send({ error: "批次驗證失敗（未寫入任何資料）", details: problems.slice(0, 20) });
+    }
     try {
       const created = createRecords(db, entity, prepared);
+      logAuditMany(
+        db,
+        created.map((r) => ({
+          actor: req.user.sub,
+          action: "bulk_create",
+          entity,
+          recordId: r.id,
+          changes: r,
+        }))
+      );
       return { count: created.length, created };
     } catch (err) {
       app.log.error(err);
@@ -154,7 +184,12 @@ for (const entity of ENTITIES) {
     if (existing.owner && existing.owner !== req.user.sub && !req.user.isApiKey) {
       return reply.code(403).send({ error: "只有負責人可以修改" });
     }
-    return updateRecord(db, entity, req.params.id, req.body || {});
+    const patch = req.body || {};
+    const errors = validateRecord(entity, patch, { partial: true });
+    if (errors.length) return reply.code(400).send({ error: errors.join("；") });
+    const updated = updateRecord(db, entity, req.params.id, patch);
+    logAudit(db, { actor: req.user.sub, action: "update", entity, recordId: req.params.id, changes: patch });
+    return updated;
   });
 
   app.delete(`/api/${entity}/:id`, { preHandler: auth }, async (req, reply) => {
@@ -164,6 +199,8 @@ for (const entity of ENTITIES) {
       return reply.code(403).send({ error: "只有負責人可以刪除" });
     }
     deleteRecord(db, entity, req.params.id);
+    // Store the deleted snapshot so an accidental delete can be recovered.
+    logAudit(db, { actor: req.user.sub, action: "delete", entity, recordId: req.params.id, changes: existing });
     return { ok: true };
   });
 }
@@ -172,8 +209,31 @@ for (const entity of ENTITIES) {
 app.post("/api/deals/:id/stage", { preHandler: auth }, async (req, reply) => {
   const existing = getRecord(db, "deals", req.params.id);
   if (!existing) return reply.code(404).send({ error: "Not found" });
-  return updateRecord(db, "deals", req.params.id, { stage: req.body?.stage });
+  const stage = req.body?.stage;
+  if (!stage) return reply.code(400).send({ error: "缺少 stage" });
+  if (!isValidStage(existing.product, stage)) {
+    return reply.code(400).send({ error: `stage「${stage}」不屬於產品線 ${existing.product}` });
+  }
+  const updated = updateRecord(db, "deals", req.params.id, { stage });
+  logAudit(db, {
+    actor: req.user.sub,
+    action: "stage",
+    entity: "deals",
+    recordId: req.params.id,
+    changes: { from: existing.stage, to: stage },
+  });
+  return updated;
 });
+
+// ── Audit log read (any logged-in user / API key) ─────
+// 過濾：?entity=customers&recordId=c_xxx&limit=100（limit 上限 500）
+app.get("/api/_audit", { preHandler: auth }, async (req) =>
+  listAudit(db, {
+    entity: req.query.entity,
+    recordId: req.query.recordId,
+    limit: req.query.limit,
+  })
+);
 
 // ── Lead → Customer conversion ────────────────────────
 app.post("/api/leads/:id/convert", { preHandler: auth }, async (req, reply) => {
@@ -215,6 +275,11 @@ app.post("/api/leads/:id/convert", { preHandler: auth }, async (req, reply) => {
     status: "已轉客戶",
     convertedCustomerId: customerId,
   });
+  logAuditMany(db, [
+    { actor: req.user.sub, action: "create", entity: "customers", recordId: customerId, changes: customer },
+    ...(contact ? [{ actor: req.user.sub, action: "create", entity: "contacts", recordId: contact.id, changes: contact }] : []),
+    { actor: req.user.sub, action: "convert", entity: "leads", recordId: lead.id, changes: { convertedCustomerId: customerId } },
+  ]);
   return { customer, contact };
 });
 

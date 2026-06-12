@@ -370,8 +370,11 @@ docker logs wowcrm --tail=100 -f
 # 手動重啟
 cd /opt/wowcrm && docker compose restart
 
-# 備份 DB
-sudo cp /var/lib/wowcrm/wowcrm.db ~/wowcrm.backup.$(date +%F).db
+# 備份 DB（WAL 模式下「不要」直接 cp，會漏掉未 checkpoint 的 -wal 交易、拿到不一致副本）
+# 用 SQLite 的線上備份，可在容器運行時安全執行：
+sudo sqlite3 /var/lib/wowcrm/wowcrm.db ".backup '/home/ubuntu/wowcrm.backup.$(date +%F).db'"
+# 若 host 沒裝 sqlite3：sudo apt-get install -y sqlite3
+# （或在容器內：docker exec wowcrm node -e "require('better-sqlite3')('/data/wowcrm.db').backup('/data/backup.db')"）
 
 # 看 nginx
 sudo systemctl status nginx

@@ -234,6 +234,24 @@ GET /api/health
 
 回應：`{"ok": true, "ts": "2026-05-20T12:00:00.000Z"}`
 
+### 操作紀錄 audit log
+
+```
+GET /api/_audit?entity=customers&recordId=c_xxx&limit=100
+```
+
+- 三個 query 都可選；`limit` 上限 500
+- 記錄每筆 create / bulk_create / update / delete / stage / convert，含 `actor`（user id 或 `api`）、`ts`、`changes`
+- `delete` 會保存被刪紀錄的完整快照（誤刪可從這裡找回）
+
+回應：
+```json
+[
+  {"id": 12, "ts": "2026-06-04T...", "actor": "u4", "action": "update",
+   "entity": "deals", "recordId": "d_xxx", "changes": {"status": "已成交"}}
+]
+```
+
 ---
 
 ## Entity Schema
@@ -515,6 +533,8 @@ curl -s -X POST $API/customers/bulk $H -d '{
 ## 注意事項
 
 - API Key 擁有**完全管理員權限**（讀寫所有 entity、跳過 owner check）
+- 所有寫入都會**驗證**：必填欄位缺失或列舉值（status / source / type / product / stage…）不合法 → `400`，並回傳具體錯誤訊息。`bulk` 只要有一筆不合法就整批拒絕、不寫入。列舉值請用各 schema 區塊列出的繁中原文。
+- 所有寫入都會記進 audit log，可用 `GET /api/_audit` 查（見上方）
 - 不要把 API Key 存在前端 / 公開的地方
 - 每個請求回應都是 JSON
 - 日期格式：`YYYY-MM-DD`
