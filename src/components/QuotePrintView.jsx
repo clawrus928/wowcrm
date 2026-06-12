@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { toast } from "./Toast.jsx";
 import { COMPANY } from "../data/company.js";
 import { DEFAULT_CURRENCY } from "../constants.js";
 import { fmt, getCustomer, quoteBreakdown } from "../utils.js";
@@ -53,7 +54,7 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
       });
       triggerDownload(canvas.toDataURL("image/png"), `${fileBase}.png`);
     } catch (err) {
-      alert("產生圖片失敗：" + (err.message || err));
+      toast("產生圖片失敗：" + (err.message || err));
     } finally {
       el.style.zoom = prevZoom;
       setBusy(null);
@@ -79,7 +80,7 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
       // Revoke a bit later so iOS Safari has time to start the download
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch (err) {
-      alert("產生 Word 失敗：" + (err.message || err));
+      toast("產生 Word 失敗：" + (err.message || err));
     } finally {
       setBusy(null);
     }

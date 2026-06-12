@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import {
   INDUSTRIES,
   LEAD_SOURCES,
@@ -7,7 +8,15 @@ import {
 } from "../constants.js";
 import { ContactFormDrawer } from "./Contacts.jsx";
 import { DealFormDrawer } from "./Deals.jsx";
-import { derivedAmount, effectiveDealAmount, fmt, getRep } from "../utils.js";
+import {
+  acceptedQuoteSums,
+  dealAmount,
+  derivedAmount,
+  effectiveDealAmount,
+  groupBy,
+  fmt,
+  getRep,
+} from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
@@ -61,7 +70,12 @@ export function CustomersView({
         (x) => x.name.includes(search) || (x.corpGroup || "").includes(search)
       );
     return d;
-  }, [customers, tab, fIndustry, search]);
+  }, [customers, tab, fIndustry, search, currentUser]);
+
+  // Indexes for the table columns — built once instead of scanning all
+  // deals/quotes on every row.
+  const acceptedSums = useMemo(() => acceptedQuoteSums(quotes), [quotes]);
+  const dealsByCustomer = useMemo(() => groupBy(deals, (d) => d.customerId), [deals]);
 
   const current = drawer?.id ? customers.find((c) => c.id === drawer.id) : null;
 
@@ -87,7 +101,7 @@ export function CustomersView({
       label: "商機",
       mono: true,
       render: (r) => {
-        const n = deals.filter((d) => d.customerId === r.id).length;
+        const n = (dealsByCustomer.get(r.id) || []).length;
         return n > 0 ? (
           <span style={{ fontWeight: 600, color: T.text }}>{n}</span>
         ) : (
@@ -100,9 +114,9 @@ export function CustomersView({
       label: "已成交",
       mono: true,
       render: (r) => {
-        const won = deals
-          .filter((d) => d.customerId === r.id && d.status === "已成交")
-          .reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
+        const won = (dealsByCustomer.get(r.id) || [])
+          .filter((d) => d.status === "已成交")
+          .reduce((sum, d) => sum + dealAmount(d, acceptedSums), 0);
         return won > 0 ? (
           <span style={{ fontWeight: 600, color: "#059669" }}>{fmt(won)}</span>
         ) : (
@@ -181,12 +195,23 @@ export function CustomersView({
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
-            if (!confirm(`確定刪除客戶「${current.name}」？`)) return;
+            // 警告關聯資料會變孤兒（沒有外鍵，刪客戶不會連帶刪這些）
+            const rel = [
+              [(dealsByCustomer.get(current.id) || []).length, "商機"],
+              [contracts.filter((k) => k.customerId === current.id).length, "合同"],
+              [quotes.filter((q) => q.customerId === current.id).length, "報價"],
+              [contacts.filter((c) => c.customerId === current.id).length, "聯系人"],
+            ].filter(([n]) => n > 0);
+            const warn = rel.length
+              ? `\n\n此客戶尚有 ${rel.map(([n, t]) => `${n} ${t}`).join("、")}，` +
+                `刪除後這些資料會變成無主孤兒（仍存在但無法從客戶頁找到）。`
+              : "";
+            if (!confirm(`確定刪除客戶「${current.name}」？${warn}`)) return;
             try {
               await store.removeItem("customers", current.id);
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "刪除失敗");
+              toast(err.message || "刪除失敗");
             }
           }}
         />
@@ -207,7 +232,7 @@ export function CustomersView({
                 setDrawer({ mode: "detail", id: created.id });
               }
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />
@@ -232,7 +257,7 @@ export function CustomersView({
               await store.addItem("contacts", data);
               setSubDrawer(null);
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />
@@ -260,7 +285,7 @@ export function CustomersView({
               await store.addItem("deals", data);
               setSubDrawer(null);
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />

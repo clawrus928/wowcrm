@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import { LEAD_SOURCES, LEAD_STATUSES, REPS } from "../constants.js";
 import { getRep } from "../utils.js";
 import { s } from "../styles.js";
@@ -47,7 +48,7 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
     if (fSource !== "all") d = d.filter((x) => x.source === fSource);
     if (search) d = d.filter((x) => x.name.includes(search) || x.company.includes(search));
     return d;
-  }, [leads, tab, fStatus, fSource, search]);
+  }, [leads, tab, fStatus, fSource, search, currentUser]);
 
   const current = drawer?.id ? leads.find((l) => l.id === drawer.id) : null;
 
@@ -130,7 +131,7 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
               await store.removeItem("leads", current.id);
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "刪除失敗");
+              toast(err.message || "刪除失敗");
             }
           }}
         />
@@ -152,7 +153,7 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
                 setDrawer({ mode: "detail", id: created.id });
               }
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />
@@ -165,10 +166,10 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
           onSubmit={async (customerData) => {
             try {
               const newCust = await store.convertLeadToCustomer(current.id, customerData);
-              alert(`已轉為客戶：${newCust.name}`);
+              toast(`已轉為客戶：${newCust.name}`, "success");
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "轉換失敗");
+              toast(err.message || "轉換失敗");
             }
           }}
         />

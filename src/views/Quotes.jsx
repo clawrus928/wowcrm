@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { toast } from "../components/Toast.jsx";
 import { CURRENCIES, DEFAULT_CURRENCY, PRODUCTS, QUOTE_STATUSES, REPS } from "../constants.js";
-import { fmt, getCustomer, getDeal, getRep } from "../utils.js";
+import { fmt, getCustomer, getDeal, getRep, indexById } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -76,6 +77,8 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
     onConsumeSeed?.();
   }
 
+  const customerById = useMemo(() => indexById(customers), [customers]);
+
   const filtered = useMemo(() => {
     let d = quotes;
     if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
@@ -85,10 +88,10 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
       d = d.filter(
         (x) =>
           x.title.includes(search) ||
-          (getCustomer(x.customerId, customers)?.name || "").includes(search)
+          (customerById.get(x.customerId)?.name || "").includes(search)
       );
     return d;
-  }, [quotes, customers, tab, fStatus, search]);
+  }, [quotes, customerById, tab, fStatus, search, currentUser]);
 
   const current = drawer?.id ? quotes.find((q) => q.id === drawer.id) : null;
 
@@ -115,7 +118,7 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
     {
       key: "customer",
       label: "關聯客戶",
-      render: (r) => getCustomer(r.customerId, customers)?.name || "—",
+      render: (r) => customerById.get(r.customerId)?.name || "—",
     },
     {
       key: "amount",
@@ -188,7 +191,7 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
               await store.removeItem("quotes", current.id);
               setDrawer(null);
             } catch (err) {
-              alert(err.message || "刪除失敗");
+              toast(err.message || "刪除失敗");
             }
           }}
         />
@@ -237,7 +240,7 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
                 }
               }
             } catch (err) {
-              alert(err.message || "儲存失敗");
+              toast(err.message || "儲存失敗");
             }
           }}
         />

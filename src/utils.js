@@ -83,23 +83,58 @@ export function suggestTierDiscount(pricing, quantity) {
   return best;
 }
 
-// Effective amount for a deal: explicit `amount` if the user set one,
-// otherwise the sum of accepted quotes linked to this deal. Lets the user
-// leave the deal amount blank and let it follow whatever the customer
-// actually agreed to.
-export function effectiveDealAmount(deal, quotes) {
+// ── Lookup / index helpers ───────────────────────────────
+// Build these once per render (useMemo) and pass into row renderers so list
+// views stop doing O(rows × records) `.filter()` scans on every render.
+
+// Map keyed by a derived value → array of items.
+export function groupBy(list, keyFn) {
+  const map = new Map();
+  for (const item of list || []) {
+    const k = keyFn(item);
+    const bucket = map.get(k);
+    if (bucket) bucket.push(item);
+    else map.set(k, [item]);
+  }
+  return map;
+}
+
+// Map of id → item.
+export function indexById(list, key = "id") {
+  const map = new Map();
+  for (const item of list || []) map.set(item[key], item);
+  return map;
+}
+
+// Map of dealId → summed derivedAmount over its 已接受 quotes. Only deals that
+// HAVE an accepted quote get an entry, which preserves effectiveDealAmount's
+// fall-back semantics exactly.
+export function acceptedQuoteSums(quotes) {
+  const map = new Map();
+  for (const q of quotes || []) {
+    if (q.status === "已接受" && q.dealId != null) {
+      map.set(q.dealId, (map.get(q.dealId) || 0) + derivedAmount(q));
+    }
+  }
+  return map;
+}
+
+// Effective deal amount using a precomputed accepted-sum map (O(1) lookup).
+export function dealAmount(deal, acceptedSums) {
   if (!deal) return 0;
   if (deal.amount != null && deal.amount !== "" && Number(deal.amount) > 0) {
     return Number(deal.amount);
   }
-  const accepted = (quotes || []).filter(
-    (q) => q.dealId === deal.id && q.status === "已接受"
-  );
-  if (accepted.length === 0) {
-    // No accepted quote yet — fall back to the user-typed value (could be 0)
-    return Number(deal.amount) || 0;
-  }
-  return accepted.reduce((sum, q) => sum + derivedAmount(q), 0);
+  return acceptedSums.has(deal.id) ? acceptedSums.get(deal.id) : Number(deal.amount) || 0;
+}
+
+// Effective amount for a deal: explicit `amount` if the user set one,
+// otherwise the sum of accepted quotes linked to this deal. Lets the user
+// leave the deal amount blank and let it follow whatever the customer
+// actually agreed to. (Convenience wrapper — for hot loops build the map
+// once with acceptedQuoteSums() and call dealAmount() instead.)
+export function effectiveDealAmount(deal, quotes) {
+  return dealAmount(deal, acceptedQuoteSums(quotes));
 }
 export const getProduct = (id) => PRODUCTS.find((p) => p.id === id);
 export const getRep = (id) => REPS.find((r) => r.id === id);

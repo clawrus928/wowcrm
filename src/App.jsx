@@ -17,6 +17,7 @@ import { SuppliersView } from "./views/Suppliers.jsx";
 import { PricingsView } from "./views/Pricings.jsx";
 import { LoginView } from "./views/Login.jsx";
 import { VersionFooter } from "./components/VersionFooter.jsx";
+import { Toaster } from "./components/Toast.jsx";
 
 const VIEW_TITLES = {
   dashboard: "儀表板",
@@ -250,6 +251,7 @@ export default function App() {
 
       {isMobile && <MobileBottomNav active={view} onChange={setView} />}
       <VersionFooter />
+      <Toaster />
     </div>
   );
 }
