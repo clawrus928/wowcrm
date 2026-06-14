@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
 import { toast } from "../components/Toast.jsx";
 import { CURRENCIES, DEFAULT_CURRENCY, PRODUCTS, QUOTE_STATUSES, REPS } from "../constants.js";
-import { fmt, getCustomer, getDeal, getRep, indexById } from "../utils.js";
+import { fmt, getCustomer, getDeal, getRep, indexById, today } from "../utils.js";
+
+// 報價單是否已過有效期限（且尚未走到接受/拒絕/過期等終態）
+function isQuoteExpired(q) {
+  return (
+    q.validUntil &&
+    q.validUntil < today() &&
+    !["已接受", "已拒絕", "已過期"].includes(q.status)
+  );
+}
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -133,9 +142,28 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
     {
       key: "status",
       label: "狀態",
-      render: (r) => <StatusBadge status={r.status} />,
+      render: (r) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <StatusBadge status={r.status} />
+          {isQuoteExpired(r) && (
+            <span style={s.badge("#DC2626", "#FEE2E2")}>已過期</span>
+          )}
+        </span>
+      ),
     },
-    { key: "validUntil", label: "有效期限", mono: true },
+    {
+      key: "validUntil",
+      label: "有效期限",
+      mono: true,
+      render: (r) =>
+        r.validUntil ? (
+          <span style={{ color: isQuoteExpired(r) ? "#DC2626" : T.text, fontFamily: T.mono }}>
+            {r.validUntil}
+          </span>
+        ) : (
+          <span style={{ color: T.textTertiary }}>—</span>
+        ),
+    },
     {
       key: "owner",
       label: "負責人",

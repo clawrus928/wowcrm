@@ -149,6 +149,15 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
                 await store.updateItem("leads", current.id, data);
                 setDrawer({ mode: "detail", id: current.id });
               } else {
+                const phone = (data.phone || "").trim();
+                const dup = phone && leads.find((l) => (l.phone || "").trim() === phone);
+                if (
+                  dup &&
+                  !confirm(
+                    `已有相同手機的線索「${dup.company} · ${dup.name}」，仍要新增嗎？`
+                  )
+                )
+                  return;
                 const created = await store.addItem("leads", data);
                 setDrawer({ mode: "detail", id: created.id });
               }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "../components/Toast.jsx";
 import {
+  CUSTOMER_STATUSES,
   INDUSTRIES,
   LEAD_SOURCES,
   PRODUCTS,
@@ -37,6 +38,7 @@ const EMPTY_CUSTOMER = {
   name: "",
   corpGroup: null,
   industry: "其他",
+  status: "未處理",
   address: "",
   source: "官網",
   owner: null,
@@ -89,6 +91,16 @@ export function CustomersView({
       render: (r) => <span style={s.link}>{r.name}</span>,
     },
     { key: "industry", label: "所屬行業" },
+    {
+      key: "status",
+      label: "狀態",
+      render: (r) =>
+        r.status ? (
+          <span style={s.badge("#2563EB", "#DBEAFE")}>{r.status}</span>
+        ) : (
+          <span style={{ color: T.textTertiary }}>—</span>
+        ),
+    },
     {
       key: "corpGroup",
       label: "集團",
@@ -408,6 +420,11 @@ function CustomerDetailDrawer({
           ) : null}
         </DetailRow>
         <DetailRow label="所屬行業">{customer.industry}</DetailRow>
+        <DetailRow label="狀態">
+          {customer.status ? (
+            <span style={s.badge("#2563EB", "#DBEAFE")}>{customer.status}</span>
+          ) : null}
+        </DetailRow>
         <DetailRow label="地址">{customer.address}</DetailRow>
         <DetailRow label="客戶來源">{customer.source}</DetailRow>
         {channel && (
@@ -643,6 +660,13 @@ function CustomerFormDrawer({ initial, mode, onClose, onSubmit }) {
           value={form.industry}
           onChange={(v) => set("industry", v)}
           options={INDUSTRIES}
+        />
+      </Field>
+      <Field label="狀態">
+        <SelectInput
+          value={form.status || "未處理"}
+          onChange={(v) => set("status", v)}
+          options={CUSTOMER_STATUSES}
         />
       </Field>
       <Field label="地址">

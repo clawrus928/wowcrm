@@ -25,6 +25,7 @@ import { OwnerTabs } from "../components/Tabs.jsx";
 import { Drawer } from "../components/Drawer.jsx";
 import { DetailRow, DetailSection } from "../components/DetailRow.jsx";
 import {
+  DateInput,
   Field,
   MultiSelect,
   NumberInput,
@@ -41,6 +42,8 @@ const EMPTY_DEAL = {
   amount: null,
   currency: DEFAULT_CURRENCY,
   status: "進行中",
+  expectedCloseDate: null,
+  lostReason: "",
   supplierId: null,
   owner: null,
   collaborators: [],
@@ -314,6 +317,14 @@ function DealDetailDrawer({
         <DetailRow label="狀態">
           <StatusBadge status={deal.status} />
         </DetailRow>
+        {deal.status === "進行中" && deal.expectedCloseDate && (
+          <DetailRow label="預計成交日">
+            <span style={{ fontFamily: T.mono }}>{deal.expectedCloseDate}</span>
+          </DetailRow>
+        )}
+        {deal.status === "已流失" && deal.lostReason && (
+          <DetailRow label="流失原因">{deal.lostReason}</DetailRow>
+        )}
         {supplier && (
           <DetailRow label="供應商">
             <button
@@ -542,6 +553,23 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
           options={DEAL_STATUSES}
         />
       </Field>
+      {form.status === "進行中" && (
+        <Field label="預計成交日" hint="可選,用來追蹤進度與逾期">
+          <DateInput
+            value={form.expectedCloseDate}
+            onChange={(v) => set("expectedCloseDate", v || null)}
+          />
+        </Field>
+      )}
+      {form.status === "已流失" && (
+        <Field label="流失原因">
+          <TextInput
+            value={form.lostReason || ""}
+            onChange={(v) => set("lostReason", v)}
+            placeholder="如：價格過高 / 競品 / 暫緩採購"
+          />
+        </Field>
+      )}
       <Field label="供應商">
         <SearchSelect
           value={form.supplierId}

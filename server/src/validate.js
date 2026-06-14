@@ -20,6 +20,7 @@ const ENUMS = {
   },
   customers: {
     industry: ["科技", "金融", "零售", "製造", "餐飲", "醫療", "教育", "貿易", "其他"],
+    status: ["未處理", "初訪", "跟進中", "報價"],
     source: SOURCES,
   },
   contacts: {},
