@@ -4,6 +4,30 @@ import { PRODUCTS, REPS } from "./constants.js";
 export const fmt = (n, currency = "MOP") =>
   `${currency} ${Number(n || 0).toLocaleString()}`;
 
+// ── Multi-currency aggregation ───────────────────────────
+// We have no FX rates, so summing MOP + HKD + RMB into one number is wrong.
+// Instead, group sums by currency and render them side by side.
+// sumByCurrency → Map<currency, total>.
+export function sumByCurrency(list, amountFn, currencyFn) {
+  const map = new Map();
+  for (const item of list || []) {
+    const cur = currencyFn(item) || "MOP";
+    map.set(cur, (map.get(cur) || 0) + (Number(amountFn(item)) || 0));
+  }
+  return map;
+}
+
+// Render a currency→amount Map as "MOP 1,200,000 · RMB 80,000". Zero buckets
+// are dropped; an all-empty map renders as "MOP 0" (or `dashWhenEmpty`).
+export function fmtMulti(map, { dashWhenEmpty = false } = {}) {
+  const parts = [];
+  for (const [cur, amt] of map) {
+    if (amt) parts.push(fmt(amt, cur));
+  }
+  if (parts.length === 0) return dashWhenEmpty ? "—" : fmt(0);
+  return parts.join(" · ");
+}
+
 // Compute total amount for records that may carry either a flat `amount`
 // (older quotes/contracts) or a `items: [{quantity, unitPrice, discountPct?}]`
 // + optional `addOns: [{kind, amount}]` array.

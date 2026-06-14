@@ -26,6 +26,7 @@ const ENUMS = {
   deals: {
     product: ["consulting", "hardware", "marketing"],
     status: ["進行中", "已成交", "已流失"],
+    currency: CURRENCIES,
   },
   quotes: {
     status: ["草稿", "已發送", "已接受", "已拒絕", "已過期"],

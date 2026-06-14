@@ -15,8 +15,11 @@ import {
   effectiveDealAmount,
   groupBy,
   fmt,
+  fmtMulti,
   getRep,
+  sumByCurrency,
 } from "../utils.js";
+import { DEFAULT_CURRENCY } from "../constants.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
@@ -114,11 +117,17 @@ export function CustomersView({
       label: "已成交",
       mono: true,
       render: (r) => {
-        const won = (dealsByCustomer.get(r.id) || [])
-          .filter((d) => d.status === "已成交")
-          .reduce((sum, d) => sum + dealAmount(d, acceptedSums), 0);
-        return won > 0 ? (
-          <span style={{ fontWeight: 600, color: "#059669" }}>{fmt(won)}</span>
+        const wonDeals = (dealsByCustomer.get(r.id) || []).filter(
+          (d) => d.status === "已成交"
+        );
+        const wonByCur = sumByCurrency(
+          wonDeals,
+          (d) => dealAmount(d, acceptedSums),
+          (d) => d.currency || DEFAULT_CURRENCY
+        );
+        const has = [...wonByCur.values()].some((v) => v > 0);
+        return has ? (
+          <span style={{ fontWeight: 600, color: "#059669" }}>{fmtMulti(wonByCur)}</span>
         ) : (
           <span style={{ color: T.textTertiary }}>—</span>
         );
@@ -363,21 +372,24 @@ function CustomerDetailDrawer({
           }}
         >
           {(() => {
-            const won = deals
-              .filter((d) => d.status === "已成交")
-              .reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
+            const wonByCur = sumByCurrency(
+              deals.filter((d) => d.status === "已成交"),
+              (d) => effectiveDealAmount(d, quotes),
+              (d) => d.currency || DEFAULT_CURRENCY
+            );
+            const has = [...wonByCur.values()].some((v) => v > 0);
             return (
               <>
                 <div
                   style={{
-                    fontSize: 16,
+                    fontSize: has ? 14 : 16,
                     fontWeight: 800,
-                    color: won > 0 ? "#059669" : T.textTertiary,
+                    color: has ? "#059669" : T.textTertiary,
                     fontFamily: T.mono,
-                    lineHeight: 1.1,
+                    lineHeight: 1.2,
                   }}
                 >
-                  {won > 0 ? fmt(won) : "—"}
+                  {has ? fmtMulti(wonByCur) : "—"}
                 </div>
                 <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 3 }}>
                   總成交金額

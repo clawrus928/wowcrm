@@ -1,6 +1,14 @@
 import { useMemo } from "react";
-import { PRODUCTS, REPS } from "../constants.js";
-import { acceptedQuoteSums, dealAmount, groupBy, fmt, getRep } from "../utils.js";
+import { DEFAULT_CURRENCY, PRODUCTS, REPS } from "../constants.js";
+import {
+  acceptedQuoteSums,
+  dealAmount,
+  groupBy,
+  fmt,
+  fmtMulti,
+  getRep,
+  sumByCurrency,
+} from "../utils.js";
 import { T } from "../theme.js";
 
 function Card({ title, children, accent }) {
@@ -107,6 +115,9 @@ export function DashboardView({ store }) {
     // records × quotes) re-scans that grow with data volume.
     const acc = acceptedQuoteSums(quotes);
     const amt = (d) => dealAmount(d, acc);
+    const curOf = (d) => d.currency || DEFAULT_CURRENCY;
+    // Scalar sum is only used for relative bar widths / sorting; money shown to
+    // the user always goes through the per-currency map (no FX, no fake totals).
 
     const activeDeals = deals.filter((d) => d.status === "進行中");
     const wonDeals = deals.filter((d) => d.status === "已成交");
@@ -114,13 +125,23 @@ export function DashboardView({ store }) {
     const activeByProduct = groupBy(activeDeals, (d) => d.product);
     const productSummary = PRODUCTS.map((p) => {
       const ds = activeByProduct.get(p.id) || [];
-      return { ...p, count: ds.length, amount: ds.reduce((s, d) => s + amt(d), 0) };
+      return {
+        ...p,
+        count: ds.length,
+        amount: ds.reduce((s, d) => s + amt(d), 0),
+        amountByCur: sumByCurrency(ds, amt, curOf),
+      };
     });
 
     const activeByOwner = groupBy(activeDeals, (d) => d.owner);
     const ownerSummary = REPS.map((r) => {
       const ds = activeByOwner.get(r.id) || [];
-      return { ...r, count: ds.length, amount: ds.reduce((s, d) => s + amt(d), 0) };
+      return {
+        ...r,
+        count: ds.length,
+        amount: ds.reduce((s, d) => s + amt(d), 0),
+        amountByCur: sumByCurrency(ds, amt, curOf),
+      };
     }).sort((a, b) => b.amount - a.amount);
 
     const newLeadsThisMonth = leads.filter((l) => isThisMonth(l.created)).length;
@@ -130,8 +151,8 @@ export function DashboardView({ store }) {
       ? Math.round((convertedLeads / leads.length) * 100)
       : 0;
 
-    const totalPipeline = activeDeals.reduce((s, d) => s + amt(d), 0);
-    const totalWon = wonDeals.reduce((s, d) => s + amt(d), 0);
+    const totalPipeline = sumByCurrency(activeDeals, amt, curOf);
+    const totalWon = sumByCurrency(wonDeals, amt, curOf);
 
     const dealsByCustomer = groupBy(deals, (d) => d.customerId);
     const contractsByCustomer = groupBy(contracts || [], (k) => k.customerId);
@@ -145,21 +166,23 @@ export function DashboardView({ store }) {
         for (const l of chLeads) {
           if (l.convertedCustomerId) chCustIds.add(l.convertedCustomerId);
         }
-        let won = 0;
+        const wonDealsForCh = [];
         let commission = 0;
         for (const id of chCustIds) {
           for (const d of dealsByCustomer.get(id) || []) {
-            if (d.status === "已成交") won += amt(d);
+            if (d.status === "已成交") wonDealsForCh.push(d);
           }
           for (const k of contractsByCustomer.get(id) || []) {
             commission += Number(k.internalCommissionAmount) || 0;
           }
         }
+        const won = wonDealsForCh.reduce((s, d) => s + amt(d), 0);
         return {
           ...ch,
           leadCount: chLeads.length,
           customerCount: chCustIds.size,
           wonAmount: won,
+          wonByCur: sumByCurrency(wonDealsForCh, amt, curOf),
           commission,
         };
       })
@@ -169,13 +192,17 @@ export function DashboardView({ store }) {
     const supplierSummary = (suppliers || [])
       .map((sp) => {
         const spDeals = dealsBySupplier.get(sp.id) || [];
-        let activeAmount = 0;
-        let wonAmount = 0;
-        for (const d of spDeals) {
-          if (d.status === "進行中") activeAmount += amt(d);
-          else if (d.status === "已成交") wonAmount += amt(d);
-        }
-        return { ...sp, dealCount: spDeals.length, activeAmount, wonAmount };
+        const spActive = spDeals.filter((d) => d.status === "進行中");
+        const spWon = spDeals.filter((d) => d.status === "已成交");
+        const activeAmount = spActive.reduce((s, d) => s + amt(d), 0);
+        const wonAmount = spWon.reduce((s, d) => s + amt(d), 0);
+        return {
+          ...sp,
+          dealCount: spDeals.length,
+          activeAmount,
+          wonAmount,
+          activeByCur: sumByCurrency(spActive, amt, curOf),
+        };
       })
       .filter((sp) => sp.dealCount > 0)
       .sort((a, b) => b.activeAmount + b.wonAmount - (a.activeAmount + a.wonAmount));
@@ -246,13 +273,13 @@ export function DashboardView({ store }) {
         <Card title="進行中商機">
           <Stat value={stats.activeDeals.length} label="筆" />
           <div style={{ fontSize: 12, color: T.textSecondary, fontFamily: T.mono }}>
-            {fmt(stats.totalPipeline)}
+            {fmtMulti(stats.totalPipeline)}
           </div>
         </Card>
         <Card title="已成交">
           <Stat value={stats.wonDeals.length} label="筆" color="#059669" />
           <div style={{ fontSize: 12, color: T.textSecondary, fontFamily: T.mono }}>
-            {fmt(stats.totalWon)}
+            {fmtMulti(stats.totalWon)}
           </div>
         </Card>
         <Card title="本月新線索">
@@ -285,7 +312,7 @@ export function DashboardView({ store }) {
                 max={stats.productMax}
                 color={p.color}
                 label={`${p.icon} ${p.name}`}
-                sub={`${p.count} 筆 · ${fmt(p.amount)}`}
+                sub={`${p.count} 筆 · ${fmtMulti(p.amountByCur)}`}
               />
             );
           })}
@@ -299,7 +326,7 @@ export function DashboardView({ store }) {
               max={maxOwnerAmount}
               color={T.accent}
               label={o.name}
-              sub={`${o.count} 筆 · ${fmt(o.amount)}`}
+              sub={`${o.count} 筆 · ${fmtMulti(o.amountByCur)}`}
             />
           ))}
         </Card>
@@ -346,7 +373,7 @@ export function DashboardView({ store }) {
                         fontFamily: T.mono,
                       }}
                     >
-                      {ch.wonAmount > 0 ? fmt(ch.wonAmount) : "—"}
+                      {ch.wonAmount > 0 ? fmtMulti(ch.wonByCur, { dashWhenEmpty: true }) : "—"}
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: T.textTertiary }}>
@@ -404,7 +431,7 @@ export function DashboardView({ store }) {
                       fontFamily: T.mono,
                     }}
                   >
-                    {sp.activeAmount > 0 ? fmt(sp.activeAmount) : "—"}
+                    {sp.activeAmount > 0 ? fmtMulti(sp.activeByCur, { dashWhenEmpty: true }) : "—"}
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: T.textTertiary }}>

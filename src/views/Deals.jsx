@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { toast } from "../components/Toast.jsx";
 import {
+  CURRENCIES,
   DEAL_STATUSES,
+  DEFAULT_CURRENCY,
   PRODUCTS,
   REPS,
 } from "../constants.js";
@@ -37,6 +39,7 @@ const EMPTY_DEAL = {
   product: "consulting",
   stage: PRODUCTS[0].stages[0],
   amount: null,
+  currency: DEFAULT_CURRENCY,
   status: "進行中",
   supplierId: null,
   owner: null,
@@ -119,7 +122,7 @@ export function DealsView({
         const derived = (r.amount == null || r.amount === "" || r.amount === 0) && eff > 0;
         return (
           <span style={{ fontWeight: 600, color: T.text }}>
-            {fmt(eff)}
+            {fmt(eff, r.currency || DEFAULT_CURRENCY)}
             {derived && (
               <span
                 style={{
@@ -295,7 +298,7 @@ function DealDetailDrawer({
           )}
         </DetailRow>
         <DetailRow label={explicit ? "預估金額" : "金額"}>
-          <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(eff)}</span>
+          <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(eff, deal.currency || DEFAULT_CURRENCY)}</span>
           {!explicit && eff > 0 && (
             <span
               style={{
@@ -518,8 +521,15 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
       <Field label="階段" error={errors.stage}>
         <SelectInput value={form.stage} onChange={(v) => set("stage", v)} options={stages} />
       </Field>
+      <Field label="幣別">
+        <SelectInput
+          value={form.currency || DEFAULT_CURRENCY}
+          onChange={(v) => set("currency", v)}
+          options={CURRENCIES}
+        />
+      </Field>
       <Field
-        label="預估金額（MOP）"
+        label={`預估金額（${form.currency || DEFAULT_CURRENCY}）`}
         hint="留空時自動取「已接受報價」的合計金額"
         error={errors.amount}
       >
