@@ -27,6 +27,7 @@ export const ENTITIES = [
   "channels",
   "suppliers",
   "pricings",
+  "activities",
 ];
 
 export function openDb(path) {

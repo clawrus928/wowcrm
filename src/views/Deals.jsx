@@ -16,7 +16,10 @@ import {
   getProduct,
   getRep,
   indexById,
+  nextFollowUp,
+  today,
 } from "../utils.js";
+import { ActivityPanel } from "../components/ActivityPanel.jsx";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -57,7 +60,7 @@ export function DealsView({
   onOpenQuote,
   onOpenContract,
 }) {
-  const { deals, customers, suppliers, quotes, contracts, currentUser } = store;
+  const { deals, customers, suppliers, quotes, contracts, activities, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fProduct, setFProduct] = useState("all");
   const [fStatus, setFStatus] = useState("all");
@@ -148,6 +151,27 @@ export function DealsView({
       render: (r) => <StatusBadge status={r.status} />,
     },
     {
+      key: "nextFollowUp",
+      label: "下次跟進",
+      mono: true,
+      render: (r) => {
+        const d = nextFollowUp(activities, "deal", r.id);
+        if (!d) return <span style={{ color: T.textTertiary }}>—</span>;
+        const overdue = d < today();
+        return (
+          <span
+            style={{
+              color: overdue ? "#DC2626" : T.text,
+              fontWeight: overdue ? 700 : 400,
+              fontFamily: T.mono,
+            }}
+          >
+            {d}
+          </span>
+        );
+      },
+    },
+    {
       key: "owner",
       label: "負責人",
       render: (r) => getRep(r.owner)?.name || "—",
@@ -200,6 +224,7 @@ export function DealsView({
       {drawer?.mode === "detail" && current && (
         <DealDetailDrawer
           deal={current}
+          store={store}
           customers={customers}
           suppliers={suppliers}
           quotes={quotes.filter((q) => q.dealId === current.id)}
@@ -249,6 +274,7 @@ export function DealsView({
 
 function DealDetailDrawer({
   deal,
+  store,
   customers,
   suppliers,
   quotes,
@@ -349,6 +375,10 @@ function DealDetailDrawer({
         <DetailRow label="創建時間">
           <span style={{ fontFamily: T.mono }}>{deal.created}</span>
         </DetailRow>
+      </DetailSection>
+
+      <DetailSection title="跟進紀錄">
+        <ActivityPanel store={store} relatedType="deal" relatedId={deal.id} />
       </DetailSection>
 
       <DetailSection title={`報價單（${quotes?.length || 0}）`}>

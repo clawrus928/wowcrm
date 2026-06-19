@@ -49,6 +49,9 @@ export const ADDON_PRESETS = [
 ];
 export const CUSTOMER_STATUSES = ["未處理", "初訪", "跟進中", "報價"];
 export const DEAL_STATUSES = ["進行中", "已成交", "已流失"];
+
+// 跟進紀錄(activity)的類型
+export const ACTIVITY_KINDS = ["電話", "拜訪", "會議", "Email", "訊息", "備註"];
 export const CONTRACT_STATUSES = ["草稿", "審批中", "已簽署", "執行中", "已完成", "已終止"];
 export const QUOTE_STATUSES = ["草稿", "已發送", "已接受", "已拒絕", "已過期"];
 

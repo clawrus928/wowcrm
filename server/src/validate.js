@@ -51,6 +51,10 @@ const ENUMS = {
     currency: CURRENCIES,
     status: ["啟用", "停用"],
   },
+  activities: {
+    kind: ["電話", "拜訪", "會議", "Email", "訊息", "備註"],
+    relatedType: ["deal", "customer", "lead"],
+  },
 };
 
 // 「成為一筆可用紀錄」的最低必填（身分 / 關聯欄位）。比前端表單寬鬆,
@@ -65,6 +69,7 @@ const REQUIRED = {
   channels: ["name"],
   suppliers: ["name"],
   pricings: ["name"],
+  activities: ["relatedType", "relatedId", "kind"],
 };
 
 function isEmpty(v) {

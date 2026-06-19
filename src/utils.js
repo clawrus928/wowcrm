@@ -167,6 +167,22 @@ export const getDeal = (id, deals) => deals.find((d) => d.id === id);
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
+// 某筆紀錄的「下次跟進日」= 未完成跟進中最早的日期(無則 null)。
+export function nextFollowUp(activities, relatedType, relatedId) {
+  let best = null;
+  for (const a of activities || []) {
+    if (
+      a.relatedType === relatedType &&
+      a.relatedId === relatedId &&
+      !a.done &&
+      a.date
+    ) {
+      if (!best || a.date < best) best = a.date;
+    }
+  }
+  return best;
+}
+
 export const newId = (prefix) =>
   `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
