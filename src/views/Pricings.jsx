@@ -27,6 +27,7 @@ const EMPTY_PRICING = {
   category: "顧問服務",
   currency: DEFAULT_CURRENCY,
   price: 0,
+  channelPrice: 0,
   cost: 0,
   billingType: "一次性",
   description: "",
@@ -93,6 +94,19 @@ export function PricingsView({ store, drawerSeed, onConsumeSeed }) {
           {fmt(r.price || 0, r.currency || DEFAULT_CURRENCY)}
         </span>
       ),
+    },
+    {
+      key: "channelPrice",
+      label: "供貨價(渠道)",
+      mono: true,
+      render: (r) =>
+        r.channelPrice > 0 ? (
+          <span style={{ color: "#7C3AED", fontWeight: 600 }}>
+            {fmt(r.channelPrice, r.currency || DEFAULT_CURRENCY)}
+          </span>
+        ) : (
+          <span style={{ color: T.textTertiary }}>—</span>
+        ),
     },
     {
       key: "cost",
@@ -277,6 +291,18 @@ function PricingDetailDrawer({ pricing, onClose, onEdit, onDelete }) {
             {fmt(pricing.price || 0, pricing.currency || DEFAULT_CURRENCY)}
           </span>
         </DetailRow>
+        <DetailRow label="供貨價（給渠道）">
+          {pricing.channelPrice > 0 ? (
+            <span style={{ fontFamily: T.mono, fontWeight: 700, color: "#7C3AED" }}>
+              {fmt(pricing.channelPrice, pricing.currency || DEFAULT_CURRENCY)}
+              <span style={{ fontSize: 11, color: T.textTertiary, marginLeft: 6, fontWeight: 400 }}>
+                渠道差價 {fmt((pricing.price || 0) - pricing.channelPrice, pricing.currency || DEFAULT_CURRENCY)}
+              </span>
+            </span>
+          ) : (
+            <span style={{ color: T.textTertiary }}>未設</span>
+          )}
+        </DetailRow>
         <DetailRow label="成本">
           <span style={{ fontFamily: T.mono, color: T.textSecondary }}>
             {fmt(pricing.cost || 0, pricing.currency || DEFAULT_CURRENCY)}
@@ -325,6 +351,8 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
     const e = {};
     if (!form.name?.trim()) e.name = "請輸入項目名稱";
     if (form.price == null || form.price < 0) e.price = "請輸入有效售價";
+    if (form.channelPrice != null && form.channelPrice < 0)
+      e.channelPrice = "供貨價不可為負數";
     if (form.cost != null && form.cost < 0) e.cost = "成本不可為負數";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -332,6 +360,7 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
 
   const margin = (form.price || 0) - (form.cost || 0);
   const pct = form.price ? Math.round((margin / form.price) * 100) : 0;
+  const channelDiff = (form.price || 0) - (form.channelPrice || 0); // 售價 − 供貨價 = 渠道差價
 
   return (
     <Drawer
@@ -394,6 +423,16 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
         <NumberInput value={form.price} onChange={(v) => set("price", v)} />
       </Field>
       <Field
+        label={`供貨價 · 給渠道（${form.currency || DEFAULT_CURRENCY}）`}
+        hint="賣給渠道方的價格;留空或 0 表示未設"
+        error={errors.channelPrice}
+      >
+        <NumberInput
+          value={form.channelPrice}
+          onChange={(v) => set("channelPrice", v)}
+        />
+      </Field>
+      <Field
         label={`成本（${form.currency || DEFAULT_CURRENCY}）`}
         hint="內部欄位，不會列印給客戶"
         error={errors.cost}
@@ -412,7 +451,7 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
           justifyContent: "space-between",
         }}
       >
-        <span style={{ color: T.textSecondary }}>毛利</span>
+        <span style={{ color: T.textSecondary }}>毛利（直售）</span>
         <span
           style={{
             fontFamily: T.mono,
@@ -423,6 +462,25 @@ function PricingFormDrawer({ initial, mode, onClose, onSubmit }) {
           {fmt(margin, form.currency || DEFAULT_CURRENCY)} ({pct}%)
         </span>
       </div>
+      {form.channelPrice > 0 && (
+        <div
+          style={{
+            margin: "-8px 0 14px",
+            padding: "8px 12px",
+            background: T.surfaceAlt,
+            borderRadius: T.radiusSm,
+            fontSize: 12,
+            fontFamily: T.font,
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <span style={{ color: T.textSecondary }}>渠道差價（售價 − 供貨價）</span>
+          <span style={{ fontFamily: T.mono, fontWeight: 700, color: T.text }}>
+            {fmt(channelDiff, form.currency || DEFAULT_CURRENCY)}
+          </span>
+        </div>
+      )}
       <Field
         label="階梯折扣表"
         hint="按數量自動套折扣。報價時數量達到 minQty → 自動套對應折扣 %"
