@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { toast } from "../components/Toast.jsx";
-import { PRODUCTS } from "../constants.js";
-import { effectiveDealAmount, fmt, getCustomer, getRep } from "../utils.js";
+import { DEFAULT_CURRENCY, PRODUCTS } from "../constants.js";
+import {
+  acceptedQuoteSums,
+  dealAmount,
+  effectiveDealAmount,
+  fmt,
+  fmtMulti,
+  getCustomer,
+  getRep,
+  sumByCurrency,
+} from "../utils.js";
 import { T } from "../theme.js";
 
 export function PipelineView({ store, onOpenSupplier }) {
@@ -26,9 +35,11 @@ export function PipelineView({ store, onOpenSupplier }) {
     }
   };
 
-  const totalAmount = pipelineDeals.reduce(
-    (acc, d) => acc + effectiveDealAmount(d, quotes),
-    0
+  const acceptedSums = acceptedQuoteSums(quotes);
+  const totalByCurrency = sumByCurrency(
+    pipelineDeals,
+    (d) => dealAmount(d, acceptedSums),
+    (d) => d.currency || DEFAULT_CURRENCY
   );
   const totalCount = pipelineDeals.length;
 
@@ -72,7 +83,7 @@ export function PipelineView({ store, onOpenSupplier }) {
                 fontFamily: T.mono,
               }}
             >
-              {fmt(totalAmount)}
+              {fmtMulti(totalByCurrency)}
             </span>
           </div>
         </div>
@@ -135,9 +146,10 @@ export function PipelineView({ store, onOpenSupplier }) {
       >
         {stages.map((stage) => {
           const stageDeals = pipelineDeals.filter((d) => d.stage === stage);
-          const stageTotal = stageDeals.reduce(
-            (acc, d) => acc + effectiveDealAmount(d, quotes),
-            0
+          const stageTotal = sumByCurrency(
+            stageDeals,
+            (d) => dealAmount(d, acceptedSums),
+            (d) => d.currency || DEFAULT_CURRENCY
           );
           return (
             <PipelineColumn
@@ -256,7 +268,7 @@ function PipelineColumn({
             fontFamily: T.mono,
           }}
         >
-          {fmt(stageTotal)}
+          {fmtMulti(stageTotal)}
         </div>
       </div>
 
@@ -362,7 +374,7 @@ function PipelineCard({
           marginBottom: 6,
         }}
       >
-        {fmt(effectiveDealAmount(deal, quotes))}
+        {fmt(effectiveDealAmount(deal, quotes), deal.currency || DEFAULT_CURRENCY)}
       </div>
       {supplier && (
         <button

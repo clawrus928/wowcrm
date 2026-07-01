@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { toast } from "../components/Toast.jsx";
 import {
+  CURRENCIES,
   DEAL_STATUSES,
+  DEFAULT_CURRENCY,
   PRODUCTS,
   REPS,
 } from "../constants.js";
@@ -14,7 +16,10 @@ import {
   getProduct,
   getRep,
   indexById,
+  nextFollowUp,
+  today,
 } from "../utils.js";
+import { ActivityPanel } from "../components/ActivityPanel.jsx";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -23,6 +28,7 @@ import { OwnerTabs } from "../components/Tabs.jsx";
 import { Drawer } from "../components/Drawer.jsx";
 import { DetailRow, DetailSection } from "../components/DetailRow.jsx";
 import {
+  DateInput,
   Field,
   MultiSelect,
   NumberInput,
@@ -37,7 +43,10 @@ const EMPTY_DEAL = {
   product: "consulting",
   stage: PRODUCTS[0].stages[0],
   amount: null,
+  currency: DEFAULT_CURRENCY,
   status: "進行中",
+  expectedCloseDate: null,
+  lostReason: "",
   supplierId: null,
   owner: null,
   collaborators: [],
@@ -51,7 +60,7 @@ export function DealsView({
   onOpenQuote,
   onOpenContract,
 }) {
-  const { deals, customers, suppliers, quotes, contracts, currentUser } = store;
+  const { deals, customers, suppliers, quotes, contracts, activities, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fProduct, setFProduct] = useState("all");
   const [fStatus, setFStatus] = useState("all");
@@ -119,7 +128,7 @@ export function DealsView({
         const derived = (r.amount == null || r.amount === "" || r.amount === 0) && eff > 0;
         return (
           <span style={{ fontWeight: 600, color: T.text }}>
-            {fmt(eff)}
+            {fmt(eff, r.currency || DEFAULT_CURRENCY)}
             {derived && (
               <span
                 style={{
@@ -140,6 +149,27 @@ export function DealsView({
       key: "status",
       label: "狀態",
       render: (r) => <StatusBadge status={r.status} />,
+    },
+    {
+      key: "nextFollowUp",
+      label: "下次跟進",
+      mono: true,
+      render: (r) => {
+        const d = nextFollowUp(activities, "deal", r.id);
+        if (!d) return <span style={{ color: T.textTertiary }}>—</span>;
+        const overdue = d < today();
+        return (
+          <span
+            style={{
+              color: overdue ? "#DC2626" : T.text,
+              fontWeight: overdue ? 700 : 400,
+              fontFamily: T.mono,
+            }}
+          >
+            {d}
+          </span>
+        );
+      },
     },
     {
       key: "owner",
@@ -194,6 +224,7 @@ export function DealsView({
       {drawer?.mode === "detail" && current && (
         <DealDetailDrawer
           deal={current}
+          store={store}
           customers={customers}
           suppliers={suppliers}
           quotes={quotes.filter((q) => q.dealId === current.id)}
@@ -243,6 +274,7 @@ export function DealsView({
 
 function DealDetailDrawer({
   deal,
+  store,
   customers,
   suppliers,
   quotes,
@@ -295,7 +327,7 @@ function DealDetailDrawer({
           )}
         </DetailRow>
         <DetailRow label={explicit ? "預估金額" : "金額"}>
-          <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(eff)}</span>
+          <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(eff, deal.currency || DEFAULT_CURRENCY)}</span>
           {!explicit && eff > 0 && (
             <span
               style={{
@@ -311,6 +343,14 @@ function DealDetailDrawer({
         <DetailRow label="狀態">
           <StatusBadge status={deal.status} />
         </DetailRow>
+        {deal.status === "進行中" && deal.expectedCloseDate && (
+          <DetailRow label="預計成交日">
+            <span style={{ fontFamily: T.mono }}>{deal.expectedCloseDate}</span>
+          </DetailRow>
+        )}
+        {deal.status === "已流失" && deal.lostReason && (
+          <DetailRow label="流失原因">{deal.lostReason}</DetailRow>
+        )}
         {supplier && (
           <DetailRow label="供應商">
             <button
@@ -335,6 +375,10 @@ function DealDetailDrawer({
         <DetailRow label="創建時間">
           <span style={{ fontFamily: T.mono }}>{deal.created}</span>
         </DetailRow>
+      </DetailSection>
+
+      <DetailSection title="跟進紀錄">
+        <ActivityPanel store={store} relatedType="deal" relatedId={deal.id} />
       </DetailSection>
 
       <DetailSection title={`報價單（${quotes?.length || 0}）`}>
@@ -518,8 +562,15 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
       <Field label="階段" error={errors.stage}>
         <SelectInput value={form.stage} onChange={(v) => set("stage", v)} options={stages} />
       </Field>
+      <Field label="幣別">
+        <SelectInput
+          value={form.currency || DEFAULT_CURRENCY}
+          onChange={(v) => set("currency", v)}
+          options={CURRENCIES}
+        />
+      </Field>
       <Field
-        label="預估金額（MOP）"
+        label={`預估金額（${form.currency || DEFAULT_CURRENCY}）`}
         hint="留空時自動取「已接受報價」的合計金額"
         error={errors.amount}
       >
@@ -532,6 +583,23 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
           options={DEAL_STATUSES}
         />
       </Field>
+      {form.status === "進行中" && (
+        <Field label="預計成交日" hint="可選,用來追蹤進度與逾期">
+          <DateInput
+            value={form.expectedCloseDate}
+            onChange={(v) => set("expectedCloseDate", v || null)}
+          />
+        </Field>
+      )}
+      {form.status === "已流失" && (
+        <Field label="流失原因">
+          <TextInput
+            value={form.lostReason || ""}
+            onChange={(v) => set("lostReason", v)}
+            placeholder="如：價格過高 / 競品 / 暫緩採購"
+          />
+        </Field>
+      )}
       <Field label="供應商">
         <SearchSelect
           value={form.supplierId}

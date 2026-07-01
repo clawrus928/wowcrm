@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
 import { toast } from "../components/Toast.jsx";
 import { CURRENCIES, DEFAULT_CURRENCY, PRODUCTS, QUOTE_STATUSES, REPS } from "../constants.js";
-import { fmt, getCustomer, getDeal, getRep, indexById } from "../utils.js";
+import { fmt, getCustomer, getDeal, getRep, indexById, today } from "../utils.js";
+
+// 報價單是否已過有效期限（且尚未走到接受/拒絕/過期等終態）
+function isQuoteExpired(q) {
+  return (
+    q.validUntil &&
+    q.validUntil < today() &&
+    !["已接受", "已拒絕", "已過期"].includes(q.status)
+  );
+}
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -133,9 +142,28 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
     {
       key: "status",
       label: "狀態",
-      render: (r) => <StatusBadge status={r.status} />,
+      render: (r) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <StatusBadge status={r.status} />
+          {isQuoteExpired(r) && (
+            <span style={s.badge("#DC2626", "#FEE2E2")}>已過期</span>
+          )}
+        </span>
+      ),
     },
-    { key: "validUntil", label: "有效期限", mono: true },
+    {
+      key: "validUntil",
+      label: "有效期限",
+      mono: true,
+      render: (r) =>
+        r.validUntil ? (
+          <span style={{ color: isQuoteExpired(r) ? "#DC2626" : T.text, fontFamily: T.mono }}>
+            {r.validUntil}
+          </span>
+        ) : (
+          <span style={{ color: T.textTertiary }}>—</span>
+        ),
+    },
     {
       key: "owner",
       label: "負責人",
@@ -185,6 +213,25 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
           deals={deals}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
+          onConvertToContract={async () => {
+            if (!confirm(`要用此報價單建立一份合同草稿嗎？（會帶入全部收費項目）`)) return;
+            try {
+              await store.addItem("contracts", {
+                title: current.title,
+                customerId: current.customerId,
+                dealId: current.dealId || null,
+                currency: current.currency || DEFAULT_CURRENCY,
+                items: current.items || [],
+                addOns: current.addOns || [],
+                status: "草稿",
+                owner: current.owner || currentUser,
+                collaborators: current.collaborators || [],
+              });
+              toast("已建立合同草稿（在「合同」頁查看）", "success");
+            } catch (err) {
+              toast(err.message || "建立合同失敗");
+            }
+          }}
           onDelete={async () => {
             if (!confirm(`確定刪除報價單「${current.title}」？`)) return;
             try {
@@ -249,7 +296,7 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
   );
 }
 
-function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete }) {
+function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete, onConvertToContract }) {
   const cust = getCustomer(quote.customerId, customers);
   const deal = getDeal(quote.dealId, deals);
   const items = quote.items || [];
@@ -269,6 +316,11 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete 
             刪除
           </button>
           <div style={{ flex: 1 }} />
+          {onConvertToContract && (
+            <button onClick={onConvertToContract} style={s.btn(false)}>
+              轉為合同
+            </button>
+          )}
           <button onClick={() => setPrintOpen(true)} style={s.btn(false)}>
             🖨 列印 / PDF
           </button>

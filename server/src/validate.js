@@ -20,12 +20,14 @@ const ENUMS = {
   },
   customers: {
     industry: ["科技", "金融", "零售", "製造", "餐飲", "醫療", "教育", "貿易", "其他"],
+    status: ["未處理", "初訪", "跟進中", "報價"],
     source: SOURCES,
   },
   contacts: {},
   deals: {
     product: ["consulting", "hardware", "marketing"],
     status: ["進行中", "已成交", "已流失"],
+    currency: CURRENCIES,
   },
   quotes: {
     status: ["草稿", "已發送", "已接受", "已拒絕", "已過期"],
@@ -49,6 +51,10 @@ const ENUMS = {
     currency: CURRENCIES,
     status: ["啟用", "停用"],
   },
+  activities: {
+    kind: ["電話", "拜訪", "會議", "Email", "訊息", "備註"],
+    relatedType: ["deal", "customer", "lead"],
+  },
 };
 
 // 「成為一筆可用紀錄」的最低必填（身分 / 關聯欄位）。比前端表單寬鬆,
@@ -63,6 +69,7 @@ const REQUIRED = {
   channels: ["name"],
   suppliers: ["name"],
   pricings: ["name"],
+  activities: ["relatedType", "relatedId", "kind"],
 };
 
 function isEmpty(v) {

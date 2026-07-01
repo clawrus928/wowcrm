@@ -5,7 +5,17 @@ import {
   CHANNEL_TYPES,
   REPS,
 } from "../constants.js";
-import { acceptedQuoteSums, dealAmount, groupBy, indexById, fmt, getRep } from "../utils.js";
+import {
+  acceptedQuoteSums,
+  dealAmount,
+  groupBy,
+  indexById,
+  fmt,
+  fmtMulti,
+  getRep,
+  sumByCurrency,
+} from "../utils.js";
+import { DEFAULT_CURRENCY } from "../constants.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -54,8 +64,8 @@ function getChannelStats(channel, idx) {
   }
 
   const channelCustomers = [];
-  let wonAmount = 0;
-  let activeAmount = 0;
+  const wonDeals = [];
+  const activeDeals = [];
   let commission = 0;
   let dealCount = 0;
   for (const id of channelCustomerIds) {
@@ -63,20 +73,24 @@ function getChannelStats(channel, idx) {
     if (cust) channelCustomers.push(cust);
     for (const d of idx.dealsByCustomer.get(id) || []) {
       dealCount += 1;
-      if (d.status === "已成交") wonAmount += dealAmount(d, idx.acc);
-      else if (d.status === "進行中") activeAmount += dealAmount(d, idx.acc);
+      if (d.status === "已成交") wonDeals.push(d);
+      else if (d.status === "進行中") activeDeals.push(d);
     }
     for (const k of idx.contractsByCustomer.get(id) || []) {
       commission += Number(k.internalCommissionAmount) || 0;
     }
   }
+  const amt = (d) => dealAmount(d, idx.acc);
+  const curOf = (d) => d.currency || DEFAULT_CURRENCY;
 
   return {
     leadCount: channelLeads.length,
     customerCount: channelCustomers.length,
     dealCount,
-    wonAmount,
-    activeAmount,
+    wonAmount: wonDeals.reduce((s, d) => s + amt(d), 0),
+    activeAmount: activeDeals.reduce((s, d) => s + amt(d), 0),
+    wonByCur: sumByCurrency(wonDeals, amt, curOf),
+    activeByCur: sumByCurrency(activeDeals, amt, curOf),
     commission,
     leads: channelLeads,
     customers: channelCustomers,
@@ -149,7 +163,7 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
         const stats = channelStatsById.get(r.id);
         return stats?.wonAmount > 0 ? (
           <span style={{ fontWeight: 600, color: "#059669" }}>
-            {fmt(stats.wonAmount)}
+            {fmtMulti(stats.wonByCur)}
           </span>
         ) : (
           "—"
@@ -348,7 +362,7 @@ function ChannelDetailDrawer({
         />
         <StatBox
           label="成交金額"
-          value={stats.wonAmount > 0 ? fmt(stats.wonAmount) : "—"}
+          value={stats.wonAmount > 0 ? fmtMulti(stats.wonByCur) : "—"}
           color="#7C3AED"
         />
       </div>

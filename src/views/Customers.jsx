@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "../components/Toast.jsx";
 import {
+  CUSTOMER_STATUSES,
   INDUSTRIES,
   LEAD_SOURCES,
   PRODUCTS,
@@ -15,8 +16,11 @@ import {
   effectiveDealAmount,
   groupBy,
   fmt,
+  fmtMulti,
   getRep,
+  sumByCurrency,
 } from "../utils.js";
+import { DEFAULT_CURRENCY } from "../constants.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
@@ -34,6 +38,7 @@ const EMPTY_CUSTOMER = {
   name: "",
   corpGroup: null,
   industry: "其他",
+  status: "未處理",
   address: "",
   source: "官網",
   owner: null,
@@ -87,6 +92,16 @@ export function CustomersView({
     },
     { key: "industry", label: "所屬行業" },
     {
+      key: "status",
+      label: "狀態",
+      render: (r) =>
+        r.status ? (
+          <span style={s.badge("#2563EB", "#DBEAFE")}>{r.status}</span>
+        ) : (
+          <span style={{ color: T.textTertiary }}>—</span>
+        ),
+    },
+    {
       key: "corpGroup",
       label: "集團",
       render: (r) =>
@@ -114,11 +129,17 @@ export function CustomersView({
       label: "已成交",
       mono: true,
       render: (r) => {
-        const won = (dealsByCustomer.get(r.id) || [])
-          .filter((d) => d.status === "已成交")
-          .reduce((sum, d) => sum + dealAmount(d, acceptedSums), 0);
-        return won > 0 ? (
-          <span style={{ fontWeight: 600, color: "#059669" }}>{fmt(won)}</span>
+        const wonDeals = (dealsByCustomer.get(r.id) || []).filter(
+          (d) => d.status === "已成交"
+        );
+        const wonByCur = sumByCurrency(
+          wonDeals,
+          (d) => dealAmount(d, acceptedSums),
+          (d) => d.currency || DEFAULT_CURRENCY
+        );
+        const has = [...wonByCur.values()].some((v) => v > 0);
+        return has ? (
+          <span style={{ fontWeight: 600, color: "#059669" }}>{fmtMulti(wonByCur)}</span>
         ) : (
           <span style={{ color: T.textTertiary }}>—</span>
         );
@@ -363,21 +384,24 @@ function CustomerDetailDrawer({
           }}
         >
           {(() => {
-            const won = deals
-              .filter((d) => d.status === "已成交")
-              .reduce((sum, d) => sum + effectiveDealAmount(d, quotes), 0);
+            const wonByCur = sumByCurrency(
+              deals.filter((d) => d.status === "已成交"),
+              (d) => effectiveDealAmount(d, quotes),
+              (d) => d.currency || DEFAULT_CURRENCY
+            );
+            const has = [...wonByCur.values()].some((v) => v > 0);
             return (
               <>
                 <div
                   style={{
-                    fontSize: 16,
+                    fontSize: has ? 14 : 16,
                     fontWeight: 800,
-                    color: won > 0 ? "#059669" : T.textTertiary,
+                    color: has ? "#059669" : T.textTertiary,
                     fontFamily: T.mono,
-                    lineHeight: 1.1,
+                    lineHeight: 1.2,
                   }}
                 >
-                  {won > 0 ? fmt(won) : "—"}
+                  {has ? fmtMulti(wonByCur) : "—"}
                 </div>
                 <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 3 }}>
                   總成交金額
@@ -396,6 +420,11 @@ function CustomerDetailDrawer({
           ) : null}
         </DetailRow>
         <DetailRow label="所屬行業">{customer.industry}</DetailRow>
+        <DetailRow label="狀態">
+          {customer.status ? (
+            <span style={s.badge("#2563EB", "#DBEAFE")}>{customer.status}</span>
+          ) : null}
+        </DetailRow>
         <DetailRow label="地址">{customer.address}</DetailRow>
         <DetailRow label="客戶來源">{customer.source}</DetailRow>
         {channel && (
@@ -631,6 +660,13 @@ function CustomerFormDrawer({ initial, mode, onClose, onSubmit }) {
           value={form.industry}
           onChange={(v) => set("industry", v)}
           options={INDUSTRIES}
+        />
+      </Field>
+      <Field label="狀態">
+        <SelectInput
+          value={form.status || "未處理"}
+          onChange={(v) => set("status", v)}
+          options={CUSTOMER_STATUSES}
         />
       </Field>
       <Field label="地址">

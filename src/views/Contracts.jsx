@@ -69,6 +69,9 @@ function contractAmount(k) {
   return k.amount || 0;
 }
 
+// 合同進入這些狀態代表「已簽訂」,可連動把商機標為已成交
+const SIGNED_STATUSES = new Set(["已簽署", "執行中", "已完成"]);
+
 export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
   const { contracts, customers, deals, pricings, currentUser } = store;
   const [tab, setTab] = useState("all");
@@ -226,12 +229,31 @@ export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
           onClose={() => setDrawer(null)}
           onSubmit={async (data) => {
             try {
+              const wasSigned =
+                drawer.mode === "edit" && SIGNED_STATUSES.has(current?.status);
+              const nowSigned = SIGNED_STATUSES.has(data.status);
+              let saved;
               if (drawer.mode === "edit") {
-                await store.updateItem("contracts", current.id, data);
+                saved = await store.updateItem("contracts", current.id, data);
                 setDrawer({ mode: "detail", id: current.id });
               } else {
-                const created = await store.addItem("contracts", data);
-                setDrawer({ mode: "detail", id: created.id });
+                saved = await store.addItem("contracts", data);
+                setDrawer({ mode: "detail", id: saved.id });
+              }
+
+              // 合同剛進入「已簽署」等狀態 → 詢問是否把關聯商機標為已成交
+              if (!wasSigned && nowSigned && saved.dealId) {
+                const deal = deals.find((d) => d.id === saved.dealId);
+                if (deal && deal.status === "進行中") {
+                  if (
+                    confirm(
+                      `合同已簽署 ✅\n\n要把關聯商機「${deal.title}」標記為「已成交」嗎？`
+                    )
+                  ) {
+                    await store.updateItem("deals", deal.id, { status: "已成交" });
+                    toast(`商機「${deal.title}」已標記為已成交`, "success");
+                  }
+                }
               }
             } catch (err) {
               toast(err.message || "儲存失敗");
