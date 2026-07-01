@@ -1,7 +1,7 @@
 # WOW CRM — Agent 操作手冊
 
 > **怎麼用這份文件**:把整份貼給你的 AI agent(ChatGPT / Claude / 自訂 GPT / n8n…),
-> 並在下面 `jsK8cFro4tmevLp4WuVt08truOd4fGOq` 的位置換成你的 API 金鑰。之後就用白話交代要做的事即可。
+> 並在下面 `<<填你的金鑰>>` 的位置換成你的 API 金鑰。之後就用白話交代要做的事即可。
 > 第一次使用前,請先完成下方「使用者:一次性設定」。
 
 ---
@@ -29,7 +29,7 @@
 
 - Base URL：`https://wowcrm.wowmac.com/api`
 - 每個請求都帶 header：
-  - `X-API-Key: jsK8cFro4tmevLp4WuVt08truOd4fGOq`
+  - `X-API-Key: <<填你的金鑰>>`
   - `Content-Type: application/json`
 - 開工前先打 `GET /api/health` 確認連得到(預期 `{"ok":true,...}`)。
 
@@ -101,7 +101,7 @@ entity 可填:`leads`(線索) `customers`(客戶) `contacts`(聯系人) `deals`(
 **A. 批次建客戶**
 ```bash
 curl -s -X POST https://wowcrm.wowmac.com/api/customers/bulk \
-  -H "X-API-Key: jsK8cFro4tmevLp4WuVt08truOd4fGOq" -H "Content-Type: application/json" -d '{
+  -H "X-API-Key: <<填你的金鑰>>" -H "Content-Type: application/json" -d '{
   "items": [
     {"name":"新街美食","industry":"餐飲","address":"澳門新馬路","owner":"u4"},
     {"name":"鴻運電器","industry":"零售","address":"澳門高士德","owner":"u5"}
@@ -111,14 +111,14 @@ curl -s -X POST https://wowcrm.wowmac.com/api/customers/bulk \
 
 **B. 查進行中商機**
 ```bash
-curl -s -H "X-API-Key: jsK8cFro4tmevLp4WuVt08truOd4fGOq" https://wowcrm.wowmac.com/api/deals
+curl -s -H "X-API-Key: <<填你的金鑰>>" https://wowcrm.wowmac.com/api/deals
 # 然後篩 status == "進行中"
 ```
 
 **C. 更新 / 移動階段 / 標成交**
 ```bash
 curl -s -X PATCH https://wowcrm.wowmac.com/api/deals/d_xxx \
-  -H "X-API-Key: jsK8cFro4tmevLp4WuVt08truOd4fGOq" -H "Content-Type: application/json" -d '{"status":"已成交"}'
+  -H "X-API-Key: <<填你的金鑰>>" -H "Content-Type: application/json" -d '{"status":"已成交"}'
 ```
 
 ---
