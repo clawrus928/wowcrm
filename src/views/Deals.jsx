@@ -235,9 +235,26 @@ export function DealsView({
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
-            if (!confirm(`確定刪除商機「${current.title}」？`)) return;
+            // 提示關聯資料(報價/合同會變孤兒;跟進紀錄會一併刪除)
+            const relQuotes = quotes.filter((q) => q.dealId === current.id).length;
+            const relContracts = contracts.filter((k) => k.dealId === current.id).length;
+            const relActs = (activities || []).filter(
+              (a) => a.relatedType === "deal" && a.relatedId === current.id
+            );
+            const parts = [];
+            if (relQuotes) parts.push(`${relQuotes} 報價`);
+            if (relContracts) parts.push(`${relContracts} 合同`);
+            const warn =
+              (parts.length
+                ? `\n\n此商機尚有 ${parts.join("、")}，刪除後這些資料的關聯會懸空。`
+                : "") +
+              (relActs.length ? `\n${relActs.length} 筆跟進紀錄將一併刪除。` : "");
+            if (!confirm(`確定刪除商機「${current.title}」？${warn}`)) return;
             try {
               await store.removeItem("deals", current.id);
+              for (const a of relActs) {
+                await store.removeItem("activities", a.id);
+              }
               setDrawer(null);
             } catch (err) {
               toast(err.message || "刪除失敗");
