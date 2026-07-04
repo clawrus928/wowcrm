@@ -45,7 +45,7 @@ npm run build                    # 前端;通過才 commit
 - **不要改** `.github/workflows/deploy.yml`(除非使用者明確要求)
 - **不要改** 任何 `.env` / secrets
 - **不要碰** `/data/` 或 `/var/lib/wowcrm/`(生產資料;測試 DB 一律用 /tmp)
-- **不要** `git push --force`(`--force-with-lease` 限「重建已合併分支」情境)
+- **不要** `git push --force`。唯一預先核准的例外:用 `--force-with-lease` 重建「已全部合併進 master」的指定工作分支;其餘任何 force push 都要先問使用者
 - **不要** 加不必要的 npm 依賴(能用原生 JS 就用)
 
 ## 按需路由(遇到什麼,讀什麼;不要預先全讀)

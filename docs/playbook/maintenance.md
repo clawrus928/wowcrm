@@ -13,7 +13,8 @@
 - `docs/playbook/model-dispatch.md` 的升降級門檻、`judgment.md` 的既有 rubric —— 可以「新增」條目,「修改或刪除」既有條目要先問
 - `docs/playbook/diagnosis.md` 的排名結論
 
-**永遠不動**:`.github/workflows/deploy.yml`、`.env`、secrets、`/data/`、`/var/lib/wowcrm/`。
+**永遠不動(絕對禁令,使用者同意也不做,只能回覆做不到)**:`.env`、secrets、`/data/`、`/var/lib/wowcrm/`。
+**需使用者明確要求才動**:`.github/workflows/deploy.yml`(與 CLAUDE.md 禁止清單同一規則)。
 
 ## 2. 踩雷教訓寫哪、怎麼寫
 

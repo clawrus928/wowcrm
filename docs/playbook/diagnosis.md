@@ -56,11 +56,11 @@ DB_PATH=/tmp/test.db PORT=8090 API_KEY=k JWT_SECRET=x node server/src/index.js &
 
 ### 3. Drawer 的 prop 鏈斷裂(靜默 undefined)
 View 的資料流是三段:`store` 解構 → Drawer JSX 傳 prop → 元件函式簽名接收。任何一段漏了,React 不報錯,畫面直接少東西。
-**修法(照做)**:給 Drawer 加新資料時,固定檢查三處(以 Quotes 為例):
-1. `const { quotes, contracts, ... } = store;` ← 有沒有解構
-2. `<QuoteDetailDrawer contracts={contracts} ...>` ← 有沒有傳
-3. `function QuoteDetailDrawer({ contracts, ... })` ← 有沒有接
-改完 Grep 該 prop 名,三處都出現才算完。
+**修法(照做)**:給 Drawer 加新資料時,固定檢查三處(真實範例:Contracts.jsx 的 `quotes` prop):
+1. `const { contracts, customers, deals, quotes, ... } = store;` ← 有沒有解構
+2. `<ContractDetailDrawer quotes={quotes} ...>` ← 有沒有傳
+3. `function ContractDetailDrawer({ ..., quotes, ... })` ← 有沒有接
+改完 Grep 該 prop 名,三處都出現才算完。注意:若資料只在 View 層的閉包(如 onDelete 內)使用、沒進 Drawer 元件,則只需第 1 處,不要誤判缺 prop 是 bug。
 
 另兩個高頻雷(排第三名之後,仍要知道):
 - **幣別**:金額永遠帶 currency(預設 `"MOP"`);跨幣別不能直接相加,用 `sumByCurrency`/`fmtMulti`;商機自動合計只認同幣別已接受報價(`utils.js` 的 `acceptedQuoteSums`,key 是 `dealId|幣別`)。
