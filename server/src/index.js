@@ -19,6 +19,7 @@ import {
   logAudit,
   logAuditMany,
   migrate,
+  nextDocSeq,
   openDb,
   updateRecord,
 } from "./db.js";
@@ -50,6 +51,20 @@ const ID_PREFIX = {
 function newId(entity) {
   const prefix = ID_PREFIX[entity] || "x";
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+// 給客戶看的正式文件編號(Q-2026-001 / C-2026-001)。同一批多筆時本地遞增。
+const DOC_PREFIX = { quotes: "Q", contracts: "C" };
+function assignDocNos(entity, items) {
+  const prefix = DOC_PREFIX[entity];
+  if (!prefix) return;
+  let seq = null;
+  const year = new Date().getFullYear();
+  for (const data of items) {
+    if (data.docNo) continue;
+    if (seq === null) seq = nextDocSeq(db, entity, prefix);
+    data.docNo = `${prefix}-${year}-${String(seq++).padStart(3, "0")}`;
+  }
 }
 
 // ── 登入限流 ───────────────────────────────────────────
@@ -163,6 +178,7 @@ for (const entity of ENTITIES) {
     const id = body.id || newId(entity);
     if (!body.owner) body.owner = req.user.sub;
     if (!body.created) body.created = new Date().toISOString().slice(0, 10);
+    assignDocNos(entity, [body]);
     const errors = validateRecord(entity, body, { partial: false });
     if (errors.length) return reply.code(400).send({ error: errors.join("；") });
     try {
@@ -196,6 +212,7 @@ for (const entity of ENTITIES) {
       if (!data.created) data.created = today;
       return data;
     });
+    assignDocNos(entity, prepared);
     // Validate the whole batch BEFORE the transaction — nothing is written
     // unless every item passes.
     const problems = [];

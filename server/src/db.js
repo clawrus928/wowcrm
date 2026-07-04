@@ -147,6 +147,24 @@ export function deleteRecord(db, entity, id) {
   return result.changes > 0;
 }
 
+// Next sequence number for printable document numbers (Q-2026-007 style),
+// scanning existing docNo values for this entity + year. Max-based (not
+// count-based) so deleting old records never re-issues a used number.
+export function nextDocSeq(db, entity, prefix) {
+  const year = new Date().getFullYear();
+  const rows = db
+    .prepare(
+      "SELECT json_extract(data, '$.docNo') AS n FROM records WHERE entity = ? AND json_extract(data, '$.docNo') LIKE ?"
+    )
+    .all(entity, `${prefix}-${year}-%`);
+  let max = 0;
+  for (const r of rows) {
+    const m = /-(\d+)$/.exec(r.n || "");
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max + 1;
+}
+
 export function listUsers(db) {
   return db.prepare("SELECT id, name FROM users").all();
 }

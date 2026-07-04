@@ -301,6 +301,11 @@ function ContractDetailDrawer({ contract, customers, deals, quotes, onClose, onE
       }
     >
       <DetailSection title="基本資料">
+        {contract.docNo && (
+          <DetailRow label="編號">
+            <span style={{ fontFamily: T.mono }}>{contract.docNo}</span>
+          </DetailRow>
+        )}
         <DetailRow label="合同名稱">{contract.title}</DetailRow>
         <DetailRow label="關聯客戶">{cust?.name}</DetailRow>
         <DetailRow label="關聯商機">{deal?.title}</DetailRow>
@@ -466,6 +471,9 @@ function ContractFormDrawer({ initial, mode, customers, deals, pricings, onClose
   const [submitting, setSubmitting] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // 買方是渠道帶來的客戶 → 收費項目自動帶供貨價
+  const buyerIsChannel = !!customers.find((c) => c.id === form.customerId)?.channelId;
+
   const dealOptions = form.customerId
     ? deals.filter((d) => d.customerId === form.customerId)
     : deals;
@@ -541,6 +549,7 @@ function ContractFormDrawer({ initial, mode, customers, deals, pricings, onClose
           onChange={(items) => set("items", items)}
           pricings={pricings}
           currency={form.currency || DEFAULT_CURRENCY}
+          useChannelPrice={buyerIsChannel}
         />
       </Field>
       <Field label="套餐優惠 / 加值費" hint="折扣會疊加到項目小計，加值費分開算進總承諾">

@@ -344,6 +344,11 @@ function QuoteDetailDrawer({ quote, customers, deals, onClose, onEdit, onDelete,
       }
     >
       <DetailSection title="基本資料">
+        {quote.docNo && (
+          <DetailRow label="編號">
+            <span style={{ fontFamily: T.mono }}>{quote.docNo}</span>
+          </DetailRow>
+        )}
         <DetailRow label="報價單名稱">{quote.title}</DetailRow>
         <DetailRow label="關聯客戶">{cust?.name}</DetailRow>
         <DetailRow label="關聯商機">{deal?.title}</DetailRow>
@@ -474,6 +479,9 @@ function QuoteFormDrawer({ initial, mode, customers, deals, pricings, onClose, o
   const [submitting, setSubmitting] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // 買方是渠道帶來的客戶 → 收費項目自動帶供貨價
+  const buyerIsChannel = !!customers.find((c) => c.id === form.customerId)?.channelId;
+
   const dealOptions = form.customerId
     ? deals.filter((d) => d.customerId === form.customerId)
     : deals;
@@ -541,12 +549,18 @@ function QuoteFormDrawer({ initial, mode, customers, deals, pricings, onClose, o
           options={CURRENCIES}
         />
       </Field>
-      <Field label="收費項目" required error={errors.items}>
+      <Field
+        label="收費項目"
+        required
+        error={errors.items}
+        hint={buyerIsChannel ? "此客戶由渠道帶來,選項目時自動帶「供貨價」" : undefined}
+      >
         <LineItemsEditor
           items={form.items}
           onChange={(items) => set("items", items)}
           pricings={pricings}
           currency={form.currency || DEFAULT_CURRENCY}
+          useChannelPrice={buyerIsChannel}
         />
       </Field>
       <Field label="套餐優惠 / 加值費" hint="折扣會疊加到項目小計，加值費分開算進總承諾">

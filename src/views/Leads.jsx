@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "../components/Toast.jsx";
-import { LEAD_SOURCES, LEAD_STATUSES, REPS } from "../constants.js";
+import { INDUSTRIES, LEAD_SOURCES, LEAD_STATUSES, REPS } from "../constants.js";
 import { getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
@@ -456,17 +456,7 @@ function ConvertLeadDrawer({ lead, onClose, onSubmit }) {
         <SelectInput
           value={form.industry}
           onChange={(v) => set("industry", v)}
-          options={[
-            "科技",
-            "金融",
-            "零售",
-            "製造",
-            "餐飲",
-            "醫療",
-            "教育",
-            "貿易",
-            "其他",
-          ]}
+          options={INDUSTRIES}
         />
       </Field>
       <Field label="地址">

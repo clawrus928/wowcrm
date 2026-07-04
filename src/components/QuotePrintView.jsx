@@ -27,7 +27,7 @@ export function QuotePrintView({ record, kind = "quote", customers, onClose }) {
   const cust = getCustomer(record.customerId, customers);
 
   const titleZh = kind === "contract" ? "合  同" : "報 價 單";
-  const docNo = record.id;
+  const docNo = record.docNo || record.id;
   const docDate = record.created || "";
   const cleanCust = (cust?.name || "").replace(/[^一-鿿A-Za-z0-9_-]/g, "") || "customer";
   const fileBase = `${kind === "contract" ? "contract" : "quote"}-${cleanCust}-${docDate || docNo}`;
