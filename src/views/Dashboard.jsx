@@ -4,10 +4,12 @@ import {
   acceptedQuoteSums,
   dealAmount,
   groupBy,
+  indexById,
   fmt,
   fmtMulti,
   getRep,
   sumByCurrency,
+  today,
 } from "../utils.js";
 import { T } from "../theme.js";
 
@@ -108,7 +110,31 @@ function isThisMonth(dateStr) {
 }
 
 export function DashboardView({ store }) {
-  const { leads, customers, deals, contracts, quotes, channels, suppliers } = store;
+  const { leads, customers, deals, contracts, quotes, channels, suppliers, activities } = store;
+
+  // 待辦跟進(未完成的 activities),依日期分成 逾期 / 今日 / 未來
+  const followUps = useMemo(() => {
+    const t = today();
+    const dealById = indexById(deals);
+    const customerById = indexById(customers);
+    const leadById = indexById(leads);
+    const nameOf = (a) => {
+      if (a.relatedType === "deal") return dealById.get(a.relatedId)?.title;
+      if (a.relatedType === "customer") return customerById.get(a.relatedId)?.name;
+      if (a.relatedType === "lead") return leadById.get(a.relatedId)?.company;
+      return null;
+    };
+    const pending = (activities || [])
+      .filter((a) => !a.done && a.date)
+      .map((a) => ({ ...a, relatedName: nameOf(a) || "—" }))
+      .sort((x, y) => x.date.localeCompare(y.date));
+    return {
+      overdue: pending.filter((a) => a.date < t),
+      todayList: pending.filter((a) => a.date === t),
+      upcoming: pending.filter((a) => a.date > t),
+      total: pending.length,
+    };
+  }, [activities, deals, customers, leads]);
 
   const stats = useMemo(() => {
     // Build indexes once, then look up — avoids O(channels/suppliers × all
@@ -303,6 +329,85 @@ export function DashboardView({ store }) {
           gap: 12,
         }}
       >
+        <Card
+          title={`待辦跟進（${followUps.total}）`}
+          accent={followUps.overdue.length > 0 ? "#DC2626" : undefined}
+        >
+          {followUps.total === 0 ? (
+            <div style={{ fontSize: 12, color: T.textTertiary }}>
+              暫無待辦。在商機 / 客戶 / 線索詳情用「計劃下一步」建立跟進。
+            </div>
+          ) : (
+            [
+              ...followUps.overdue.map((a) => ({ ...a, _tag: "逾期", _color: "#DC2626" })),
+              ...followUps.todayList.map((a) => ({ ...a, _tag: "今日", _color: "#D97706" })),
+              ...followUps.upcoming.map((a) => ({ ...a, _tag: null, _color: T.textTertiary })),
+            ]
+              .slice(0, 8)
+              .map((a) => (
+                <div
+                  key={a.id}
+                  style={{
+                    padding: "7px 0",
+                    borderBottom: `1px solid ${T.borderLight}`,
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontFamily: T.mono,
+                      color: a._color,
+                      fontWeight: a._tag ? 700 : 400,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {a.date.slice(5)}
+                  </span>
+                  {a._tag && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: a._color,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {a._tag}
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: T.text,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      flex: 1,
+                    }}
+                  >
+                    {a.kind} · {a.relatedName}
+                    {a.note && (
+                      <span style={{ color: T.textTertiary }}> — {a.note}</span>
+                    )}
+                  </span>
+                  <span
+                    style={{ fontSize: 11, color: T.textTertiary, flexShrink: 0 }}
+                  >
+                    {getRep(a.owner)?.name || "—"}
+                  </span>
+                </div>
+              ))
+          )}
+          {followUps.total > 8 && (
+            <div style={{ fontSize: 11, color: T.textTertiary, marginTop: 4 }}>
+              …另有 {followUps.total - 8} 筆
+            </div>
+          )}
+        </Card>
+
         <Card title="產品線 Pipeline">
           {stats.productSummary.map((p) => {
             return (

@@ -235,9 +235,26 @@ export function DealsView({
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
-            if (!confirm(`確定刪除商機「${current.title}」？`)) return;
+            // 提示關聯資料(報價/合同會變孤兒;跟進紀錄會一併刪除)
+            const relQuotes = quotes.filter((q) => q.dealId === current.id).length;
+            const relContracts = contracts.filter((k) => k.dealId === current.id).length;
+            const relActs = (activities || []).filter(
+              (a) => a.relatedType === "deal" && a.relatedId === current.id
+            );
+            const parts = [];
+            if (relQuotes) parts.push(`${relQuotes} 報價`);
+            if (relContracts) parts.push(`${relContracts} 合同`);
+            const warn =
+              (parts.length
+                ? `\n\n此商機尚有 ${parts.join("、")}，刪除後這些資料的關聯會懸空。`
+                : "") +
+              (relActs.length ? `\n${relActs.length} 筆跟進紀錄將一併刪除。` : "");
+            if (!confirm(`確定刪除商機「${current.title}」？${warn}`)) return;
             try {
               await store.removeItem("deals", current.id);
+              for (const a of relActs) {
+                await store.removeItem("activities", a.id);
+              }
               setDrawer(null);
             } catch (err) {
               toast(err.message || "刪除失敗");
@@ -294,6 +311,18 @@ function DealDetailDrawer({
   const explicit =
     deal.amount != null && deal.amount !== "" && Number(deal.amount) > 0;
   const eff = effectiveDealAmount(deal, quotes);
+  // 已接受但幣別與商機不同的報價,不會列入自動合計 — 提示使用者
+  const mismatchedCurrencies = [
+    ...new Set(
+      (quotes || [])
+        .filter(
+          (q) =>
+            q.status === "已接受" &&
+            (q.currency || DEFAULT_CURRENCY) !== (deal.currency || DEFAULT_CURRENCY)
+        )
+        .map((q) => q.currency || DEFAULT_CURRENCY)
+    ),
+  ];
   return (
     <Drawer
       open
@@ -338,6 +367,12 @@ function DealDetailDrawer({
             >
               （已接受報價合計）
             </span>
+          )}
+          {!explicit && mismatchedCurrencies.length > 0 && (
+            <div style={{ fontSize: 11, color: "#D97706", marginTop: 4 }}>
+              ⚠ 另有 {mismatchedCurrencies.join("、")} 的已接受報價,因幣別與商機（
+              {deal.currency || DEFAULT_CURRENCY}）不同未列入合計
+            </div>
           )}
         </DetailRow>
         <DetailRow label="狀態">

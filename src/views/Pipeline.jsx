@@ -4,7 +4,6 @@ import { DEFAULT_CURRENCY, PRODUCTS } from "../constants.js";
 import {
   acceptedQuoteSums,
   dealAmount,
-  effectiveDealAmount,
   fmt,
   fmtMulti,
   getCustomer,
@@ -170,7 +169,7 @@ export function PipelineView({ store, onOpenSupplier }) {
                   toast(err.message || "移動失敗");
                 }
               }}
-              quotes={quotes}
+              acceptedSums={acceptedSums}
               onOpenSupplier={onOpenSupplier}
             />
           );
@@ -185,7 +184,7 @@ function PipelineColumn({
   deals,
   customers,
   suppliers,
-  quotes,
+  acceptedSums,
   product,
   stageTotal,
   onDrop,
@@ -279,7 +278,7 @@ function PipelineColumn({
             deal={d}
             customers={customers}
             suppliers={suppliers}
-            quotes={quotes}
+            acceptedSums={acceptedSums}
             product={product}
             onDragStart={() => onDragId(d.id)}
             allStages={allStages}
@@ -309,7 +308,7 @@ function PipelineCard({
   deal,
   customers,
   suppliers,
-  quotes,
+  acceptedSums,
   product,
   onDragStart,
   allStages,
@@ -374,7 +373,7 @@ function PipelineCard({
           marginBottom: 6,
         }}
       >
-        {fmt(effectiveDealAmount(deal, quotes), deal.currency || DEFAULT_CURRENCY)}
+        {fmt(dealAmount(deal, acceptedSums), deal.currency || DEFAULT_CURRENCY)}
       </div>
       {supplier && (
         <button

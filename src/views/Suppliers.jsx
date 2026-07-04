@@ -203,7 +203,11 @@ export function SuppliersView({
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
-            if (!confirm(`確定刪除供應商「${current.name}」？`)) return;
+            const relDeals = deals.filter((d) => d.supplierId === current.id).length;
+            const warn = relDeals
+              ? `\n\n尚有 ${relDeals} 筆商機指派給此供應商，刪除後這些商機的供應商欄位會懸空。`
+              : "";
+            if (!confirm(`確定刪除供應商「${current.name}」？${warn}`)) return;
             try {
               await store.removeItem("suppliers", current.id);
               setDrawer(null);

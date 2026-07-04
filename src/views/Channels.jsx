@@ -250,7 +250,15 @@ export function ChannelsView({ store, drawerSeed, onConsumeSeed, onOpenLead, onO
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
-            if (!confirm(`確定刪除渠道「${current.name}」？`)) return;
+            const relLeads = leads.filter((l) => l.channelId === current.id).length;
+            const relCusts = customers.filter((c) => c.channelId === current.id).length;
+            const parts = [];
+            if (relLeads) parts.push(`${relLeads} 線索`);
+            if (relCusts) parts.push(`${relCusts} 客戶`);
+            const warn = parts.length
+              ? `\n\n此渠道尚有 ${parts.join("、")}，刪除後這些資料的渠道歸屬會懸空，相關統計將消失。`
+              : "";
+            if (!confirm(`確定刪除渠道「${current.name}」？${warn}`)) return;
             try {
               await store.removeItem("channels", current.id);
               setDrawer(null);

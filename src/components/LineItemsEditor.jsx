@@ -33,7 +33,8 @@ export function totalsFor(items) {
   };
 }
 
-export function LineItemsEditor({ items, onChange, pricings, currency = "MOP" }) {
+// useChannelPrice：買方是渠道帶來的客戶時,選收費項目自動帶「供貨價」而非售價
+export function LineItemsEditor({ items, onChange, pricings, currency = "MOP", useChannelPrice = false }) {
   const list = items || [];
 
   const updateAt = (idx, patch) => {
@@ -53,10 +54,14 @@ export function LineItemsEditor({ items, onChange, pricings, currency = "MOP" })
     const current = list[idx] || {};
     const qty = Number(current.quantity) || 1;
     const suggested = suggestTierDiscount(p, qty);
+    const unitPrice =
+      useChannelPrice && Number(p.channelPrice) > 0
+        ? Number(p.channelPrice)
+        : Number(p.price) || 0;
     updateAt(idx, {
       pricingId: p.id,
       name: p.name,
-      unitPrice: Number(p.price) || 0,
+      unitPrice,
       cost: Number(p.cost) || 0,
       billingType: p.billingType || "一次性",
       description: p.description || "",

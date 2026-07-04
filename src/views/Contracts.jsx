@@ -73,7 +73,7 @@ function contractAmount(k) {
 const SIGNED_STATUSES = new Set(["已簽署", "執行中", "已完成"]);
 
 export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
-  const { contracts, customers, deals, pricings, currentUser } = store;
+  const { contracts, customers, deals, quotes, pricings, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -201,6 +201,7 @@ export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
           contract={normalizeContract(current)}
           customers={customers}
           deals={deals}
+          quotes={quotes}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
@@ -265,7 +266,10 @@ export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
   );
 }
 
-function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onDelete }) {
+function ContractDetailDrawer({ contract, customers, deals, quotes, onClose, onEdit, onDelete }) {
+  const sourceQuote = contract.quoteId
+    ? (quotes || []).find((q) => q.id === contract.quoteId)
+    : null;
   const cust = getCustomer(contract.customerId, customers);
   const deal = getDeal(contract.dealId, deals);
   const items = contract.items || [];
@@ -297,9 +301,22 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
       }
     >
       <DetailSection title="基本資料">
+        {contract.docNo && (
+          <DetailRow label="編號">
+            <span style={{ fontFamily: T.mono }}>{contract.docNo}</span>
+          </DetailRow>
+        )}
         <DetailRow label="合同名稱">{contract.title}</DetailRow>
         <DetailRow label="關聯客戶">{cust?.name}</DetailRow>
         <DetailRow label="關聯商機">{deal?.title}</DetailRow>
+        {sourceQuote && (
+          <DetailRow label="來源報價">
+            {sourceQuote.title}
+            <span style={{ marginLeft: 6, color: T.textTertiary, fontSize: 11 }}>
+              · {sourceQuote.status}
+            </span>
+          </DetailRow>
+        )}
         <DetailRow label="狀態">
           <StatusBadge status={contract.status} />
         </DetailRow>
@@ -454,6 +471,9 @@ function ContractFormDrawer({ initial, mode, customers, deals, pricings, onClose
   const [submitting, setSubmitting] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // 買方是渠道帶來的客戶 → 收費項目自動帶供貨價
+  const buyerIsChannel = !!customers.find((c) => c.id === form.customerId)?.channelId;
+
   const dealOptions = form.customerId
     ? deals.filter((d) => d.customerId === form.customerId)
     : deals;
@@ -529,6 +549,7 @@ function ContractFormDrawer({ initial, mode, customers, deals, pricings, onClose
           onChange={(items) => set("items", items)}
           pricings={pricings}
           currency={form.currency || DEFAULT_CURRENCY}
+          useChannelPrice={buyerIsChannel}
         />
       </Field>
       <Field label="套餐優惠 / 加值費" hint="折扣會疊加到項目小計，加值費分開算進總承諾">
