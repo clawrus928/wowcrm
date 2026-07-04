@@ -130,26 +130,32 @@ export function indexById(list, key = "id") {
   return map;
 }
 
-// Map of dealId → summed derivedAmount over its 已接受 quotes. Only deals that
-// HAVE an accepted quote get an entry, which preserves effectiveDealAmount's
-// fall-back semantics exactly.
+// Map of "dealId|currency" → summed derivedAmount over the deal's 已接受
+// quotes in that currency. Keyed per-currency so a deal only inherits sums
+// from quotes matching its own currency — adding an RMB quote total onto an
+// MOP deal would produce a number in the wrong unit. Only deals that HAVE an
+// accepted quote (in that currency) get an entry, preserving
+// effectiveDealAmount's fall-back semantics.
 export function acceptedQuoteSums(quotes) {
   const map = new Map();
   for (const q of quotes || []) {
     if (q.status === "已接受" && q.dealId != null) {
-      map.set(q.dealId, (map.get(q.dealId) || 0) + derivedAmount(q));
+      const key = q.dealId + "|" + (q.currency || "MOP");
+      map.set(key, (map.get(key) || 0) + derivedAmount(q));
     }
   }
   return map;
 }
 
 // Effective deal amount using a precomputed accepted-sum map (O(1) lookup).
+// Falls back to the deal's same-currency accepted-quote total only.
 export function dealAmount(deal, acceptedSums) {
   if (!deal) return 0;
   if (deal.amount != null && deal.amount !== "" && Number(deal.amount) > 0) {
     return Number(deal.amount);
   }
-  return acceptedSums.has(deal.id) ? acceptedSums.get(deal.id) : Number(deal.amount) || 0;
+  const key = deal.id + "|" + (deal.currency || "MOP");
+  return acceptedSums.has(key) ? acceptedSums.get(key) : Number(deal.amount) || 0;
 }
 
 // Effective amount for a deal: explicit `amount` if the user set one,

@@ -73,7 +73,7 @@ function contractAmount(k) {
 const SIGNED_STATUSES = new Set(["已簽署", "執行中", "已完成"]);
 
 export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
-  const { contracts, customers, deals, pricings, currentUser } = store;
+  const { contracts, customers, deals, quotes, pricings, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -201,6 +201,7 @@ export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
           contract={normalizeContract(current)}
           customers={customers}
           deals={deals}
+          quotes={quotes}
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onDelete={async () => {
@@ -265,7 +266,10 @@ export function ContractsView({ store, drawerSeed, onConsumeSeed }) {
   );
 }
 
-function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onDelete }) {
+function ContractDetailDrawer({ contract, customers, deals, quotes, onClose, onEdit, onDelete }) {
+  const sourceQuote = contract.quoteId
+    ? (quotes || []).find((q) => q.id === contract.quoteId)
+    : null;
   const cust = getCustomer(contract.customerId, customers);
   const deal = getDeal(contract.dealId, deals);
   const items = contract.items || [];
@@ -300,6 +304,14 @@ function ContractDetailDrawer({ contract, customers, deals, onClose, onEdit, onD
         <DetailRow label="合同名稱">{contract.title}</DetailRow>
         <DetailRow label="關聯客戶">{cust?.name}</DetailRow>
         <DetailRow label="關聯商機">{deal?.title}</DetailRow>
+        {sourceQuote && (
+          <DetailRow label="來源報價">
+            {sourceQuote.title}
+            <span style={{ marginLeft: 6, color: T.textTertiary, fontSize: 11 }}>
+              · {sourceQuote.status}
+            </span>
+          </DetailRow>
+        )}
         <DetailRow label="狀態">
           <StatusBadge status={contract.status} />
         </DetailRow>

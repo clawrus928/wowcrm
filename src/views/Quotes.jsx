@@ -75,7 +75,7 @@ function quoteAmount(q) {
 }
 
 export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
-  const { quotes, customers, deals, pricings, currentUser } = store;
+  const { quotes, customers, deals, contracts, pricings, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -214,12 +214,25 @@ export function QuotesView({ store, drawerSeed, onConsumeSeed }) {
           onClose={() => setDrawer(null)}
           onEdit={() => setDrawer({ mode: "edit", id: current.id })}
           onConvertToContract={async () => {
-            if (!confirm(`要用此報價單建立一份合同草稿嗎？（會帶入全部收費項目）`)) return;
+            const existing = (contracts || []).find((k) => k.quoteId === current.id);
+            if (
+              existing &&
+              !confirm(
+                `此報價已建立過合同「${existing.title}」（${existing.status}）。\n仍要再建立一份新的合同草稿嗎？`
+              )
+            )
+              return;
+            if (
+              !existing &&
+              !confirm(`要用此報價單建立一份合同草稿嗎？（會帶入全部收費項目）`)
+            )
+              return;
             try {
               await store.addItem("contracts", {
                 title: current.title,
                 customerId: current.customerId,
                 dealId: current.dealId || null,
+                quoteId: current.id,
                 currency: current.currency || DEFAULT_CURRENCY,
                 items: current.items || [],
                 addOns: current.addOns || [],

@@ -294,6 +294,18 @@ function DealDetailDrawer({
   const explicit =
     deal.amount != null && deal.amount !== "" && Number(deal.amount) > 0;
   const eff = effectiveDealAmount(deal, quotes);
+  // 已接受但幣別與商機不同的報價,不會列入自動合計 — 提示使用者
+  const mismatchedCurrencies = [
+    ...new Set(
+      (quotes || [])
+        .filter(
+          (q) =>
+            q.status === "已接受" &&
+            (q.currency || DEFAULT_CURRENCY) !== (deal.currency || DEFAULT_CURRENCY)
+        )
+        .map((q) => q.currency || DEFAULT_CURRENCY)
+    ),
+  ];
   return (
     <Drawer
       open
@@ -338,6 +350,12 @@ function DealDetailDrawer({
             >
               （已接受報價合計）
             </span>
+          )}
+          {!explicit && mismatchedCurrencies.length > 0 && (
+            <div style={{ fontSize: 11, color: "#D97706", marginTop: 4 }}>
+              ⚠ 另有 {mismatchedCurrencies.join("、")} 的已接受報價,因幣別與商機（
+              {deal.currency || DEFAULT_CURRENCY}）不同未列入合計
+            </div>
           )}
         </DetailRow>
         <DetailRow label="狀態">
