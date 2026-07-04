@@ -9,6 +9,7 @@ import { DataTable, FilterRow, PageHeader } from "../components/DataTable.jsx";
 import { OwnerTabs } from "../components/Tabs.jsx";
 import { Drawer } from "../components/Drawer.jsx";
 import { DetailRow, DetailSection } from "../components/DetailRow.jsx";
+import { ActivityPanel } from "../components/ActivityPanel.jsx";
 import {
   Field,
   MultiSelect,
@@ -119,6 +120,7 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
       {drawer?.mode === "detail" && current && (
         <LeadDetailDrawer
           lead={current}
+          store={store}
           customers={customers}
           channels={channels}
           onOpenChannel={onOpenChannel}
@@ -189,6 +191,7 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
 
 function LeadDetailDrawer({
   lead,
+  store,
   customers,
   channels,
   onOpenChannel,
@@ -261,6 +264,10 @@ function LeadDetailDrawer({
         <DetailRow label="創建時間">
           <span style={{ fontFamily: T.mono }}>{lead.created}</span>
         </DetailRow>
+      </DetailSection>
+
+      <DetailSection title="跟進紀錄">
+        <ActivityPanel store={store} relatedType="lead" relatedId={lead.id} />
       </DetailSection>
 
       {linkedCustomer && (
