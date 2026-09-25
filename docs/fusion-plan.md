@@ -1,81 +1,81 @@
-# WowCRM × QTStation 合併可行性與計劃
+# WowCRM × QTStation 合併計劃(以業務重疊為主軸)
 
-日期:2026-09-25。依據:兩邊原始碼實讀 + `qtstation/FUSION.md`(QTStation 既有的三階段構想)+ 後端逐項比對(schema/認證/路由/部署/依賴)。
+日期:2026-09-25。依據:兩邊原始碼實讀(WowCRM 各 view 的欄位定義;QTStation `workbench/js/app.js` 5741 行的表單/儲存/渲染函式逐一萃取)+ 後端逐項比對 + `qtstation/FUSION.md`。
 
-## 一、結論:能合,而且比一般情況容易得多——但「合併」要先選定義
+## 一、結論
 
-QTStation 的後端是照 WowCRM **1:1 複製**的,比對結果:
-- `records` / `audit` 表、索引:**完全相同**
-- Fastify + better-sqlite3 + @fastify/jwt + bcryptjs,`package.json` 六個依賴**版本逐字相同**
-- API 契約(`/api/auth/*`、`/api/:entity` CRUD、`/bulk`、`/_audit`)相同;前端 client 註解明寫「Mirrors the wowcrm client contract」
-- 同一台 EC2、同一套 Docker/nginx/certbot 套路,只是 port(8002/8003)、子域、DB 檔分開
+兩個系統**同時在記錄同一批業務事實**,只是用不同的欄位與不同的地方:客戶、報價、簽約金額、合約期、服務條數、待辦。QTStation 另有 6 個純內容運營模組(爆款視頻、對標帳號、IP 孵化、B-roll 素材、關鍵詞、每日任務)與 CRM 不重疊。所以合併的正確做法是:**業務事實只記一次(以 WowCRM 為主檔),QTStation 保留它獨有的交付與運營模組並掛在 CRM 的客戶/合同上。** 後端技術一致(schema/認證/API 契約 1:1)只是讓這件事便宜,不是合併的理由。
 
-真正的差異只有 **5 處**,而且都是可以決定的,不是技術障礙:
+## 二、業務重疊對映表
 
-| # | 差異 | WowCRM | QTStation | 嚴重度 |
-|---|---|---|---|---|
-| 1 | 寫入權限 | owner-only(非本人改/刪回 403) | 任何登入者可改/刪 | 高——必須先選一套 |
-| 2 | users 表 | 固定 11 人種子,無角色 | 動態建號,多 `role`/`active` 欄 | 中——migration 可解 |
-| 3 | `customers` entity | 銷售客戶主檔 | 短視頻製作客戶 | 中——同名不同義,合庫會混 |
-| 4 | `POST /api/:entity` 重複 id | 報錯 | 靜默 upsert | 低——統一即可 |
-| 5 | bulk 上限/預設 | 500 筆,自動補 docNo/created | 1000 筆,無 | 低 |
-
-**最大的成本不在後端,在前端**:WowCRM 是 React + Vite;QTStation 是一支約 5000 行的原生 JS `app.js`。後端合併是幾天的事,把 QTStation 的 UI 重寫成 React 是幾週的事。這決定了下面該走哪條路。
-
-## 二、三種「合併」與建議
-
-| 路線 | 意思 | 成本(估) | 得到什麼 |
+| 業務事實 | WowCRM 怎麼記 | QTStation 怎麼記 | 對映判斷 |
 |---|---|---|---|
-| **C. 維持分開 + SSO + 資料關聯** | 兩個容器照舊;共用 `JWT_SECRET` 一次登入;QT 客戶加 `crmCustomerId` 連到 CRM 客戶 | 小(1–3 天) | 登入一次、客戶可互查;風險最低 |
-| **B. 共用後端 + 兩個前端** | 一個 server、一個 SQLite;兩個前端各自不動(一個 React、一個原生 JS),由同一 server 提供 | 中(1–2 週) | 一份使用者、一份客戶、一份審計;運維減半;SSO 自然成立 |
-| **A. 單一系統** | B 之上再把 QTStation UI 重寫成 React views,併入 wowcrm 側欄 | 大(數週) | 使用者體驗統一;但短視頻工作台的圖表/匯入/爬蟲配置要全部重做 |
+| **客戶身分** | `customers`:name, corpGroup, industry, status(未處理/初訪/跟進中/報價), source, owner, collaborators, channelId;聯絡人另存 `contacts` | `customers`:name, company, phone, wechat, platform;**無 owner、無 source** | 同一實體。以 CRM 為主檔;QT 的 phone/wechat 進 `contacts`;platform 等 QT 專屬欄位另存(見「擴充」) |
+| **報價單** | `quotes` 獨立 entity:customerId, dealId, currency(MOP/HKD/RMB), items{name, quantity, unitPrice, cost, discountPct, billingType}, addOns, status(草稿/已發送/已接受/已拒絕/已過期), validUntil, docNo `Q-YYYY-NNN` | `customers[].quotes[]` 內嵌:quoteNumber, currency 固定 'HKD', items{name, unit, unitPrice, quantity}, discount(絕對金額), status(draft/sent/signed), signedDate, paymentTerms | **完全同一件事**。搬進 CRM `quotes`:draft→草稿、sent→已發送、signed→已接受;幣別明寫 HKD;絕對折扣轉為 addOns 折扣;QT 的 unit 進 description |
+| **簽約 / 合同** | `contracts` 獨立 entity:quoteId, items, status(草稿/審批中/已簽署/執行中/已完成/已終止), signDate, startDate, endDate, internalCommissionAmount | 沒有合同物件。「signed 的報價」= 簽約;合約期與類型記在客戶身上:contractType, contractStartDate/EndDate, contractTotal = fineCutVideoCount + aiVideoCount, hasDigitalHuman, digitalHumanCount | QT 的 signed 報價 → CRM 建一筆 `contracts`(已簽署),日期取客戶的合約起訖,**「精剪 N 條 / AI N 條 / 數字人 N 個」變成合同的 line items(quantity = 條數)**——這樣「合約條數」不再是客戶欄位,而是合同內容 |
+| **收入(客戶端)** | 已接受報價合計 / 已簽署合同,**按幣別分桶**(`sumByCurrency`) | `totalSignedRevenue` = Σ signed 報價的 `Σ(unitPrice×qty) − discount`,全部視為 HKD 直接相加 | 定義一致(簽約金額)。合併後 QT 的數字自然落在 CRM 儀表板的 HKD 桶裡;CRM 的多幣別保護對 QT 資料是升級 |
+| **收入(自營 IP)** | 無 | `ips.revenue`(月收入,固定 HKD)+ `ips.updates[].revenue` 歷史 | **不是客戶收入,不能混進簽約金額**。保留為 QT 的 `ips` entity;CRM 儀表板另加一張「自營 IP 月收入」卡,分開顯示 |
+| **預付 / 點數** | 無 | `customers[].aiPoints[]{date, type, amount}`,餘額 = Σ amount | 這是客戶的預付款流水,CRM 沒有對應物。抽成獨立 entity `creditLedger{customerId, date, type, amount, description}`,掛 CRM 客戶 id;客戶詳情顯示餘額 |
+| **服務價目** | `pricings`:name, price, cost, channelPrice, billingType | 無價目表,報價 items 每次手打 | QT 的服務(精剪視頻、AI 視頻、數字人定制、AI 點數包、投流…)建成 CRM `pricings`,之後報價用 LineItemsEditor 選項目、自動帶價與成本(毛利就出來了,QT 目前算不出毛利) |
+| **待辦** | `activities`:kind, date, note, done, relatedType/relatedId(掛商機/客戶/線索);儀表板「待辦跟進」卡 | `tasks`:title, category(crawling/analysis/production/meeting/other), priority, completed, dueDate;**不掛任何客戶** | 語意重疊但 QT 的任務多數是運營工作不對客戶。建議:保留 `tasks`,只在 category=meeting 時允許掛 customerId;不強行併入 activities |
+| **交付進度** | 無(商機成交、合同簽署後 CRM 就結束) | `productions{customerId, details[]{title, status: planned→scripting→filming→editing→review→completed, assignee, dueDate}}`,建客戶時自動建一筆 | CRM 缺的環節,是 QT 最有價值的部分。保留 entity,`customerId` 改指 CRM 客戶,**新增 `contractId`** 掛到合同;CRM 合同詳情加「製作進度」區塊(N 條已完成 / 進行中) |
+| **客戶帳號成效** | 無 | `customers[].douyinAccount / videoAccount{handle, followers, videoCount, totalLikes}`, accountLastUpdate | QT 專屬,進「擴充」 |
+| **銷售階段** | `deals` 有產品線 pipeline(PRODUCTS 各自的 stages)、amount、supplierId | 無售前流程 | 不重疊而是**前後接續**:CRM 商機 → 合同 → QT 製作。QT 客戶建檔時若還沒簽約,應先在 CRM 建商機 |
+| 爆款視頻 / 對標帳號 / B-roll / 關鍵詞 / IP 孵化 | 無 | `videos, accounts, brolls, brollKeywords, ips`(彼此無外鍵,獨立工具) | 不重疊,原樣保留在 QT 模組 |
 
-**建議:先做 C(立刻有感),再做 B(戰略正確),A 只在你本來就想重做 QTStation 介面時才做。** 理由:C 的每一步都是 B 的前置,不會白做;B 之後兩個前端各自演進互不影響;A 的成本主要是 UI 重寫,收益是「一個網址、一個側欄」,對 11 人團隊不一定值得。
+**「擴充」的存法**:QT 專屬的客戶欄位(platform, hasDigitalHuman, digitalHumanCount, preferences, douyinAccount, videoAccount, accountLastUpdate)存成獨立 entity `qtProfiles{customerId, ...}`,不塞進 CRM `customers` JSON——避免兩邊表單互踩,也讓 QT 前端只讀寫自己的那筆。
 
-## 三、必須由你決定的事(技術上兩種都做得到,結果不同)
+## 三、合併後的單一業務模型(一句話版)
 
-1. **權限模型**:合併後採哪套?建議「按 entity 設定」——CRM 的 entities(leads/customers/deals/quotes/contracts…)維持 owner-only;QT 的 entities(tasks/videos/accounts/productions…)維持全員可寫。一張設定表就能做,不必二選一。
-2. **客戶主檔**:同意 FUSION.md 的方案——**WowCRM 客戶為主檔**,QTStation 的 `customers` 改名為 `qtClients`(或加 `crmCustomerId` 外鍵指向 CRM 客戶),短視頻專屬欄位留在 QT 那筆。
-3. **使用者主檔**:WowCRM 的 u1–u11 為主;WowCRM 的 `users` 表補 `role`/`active` 欄(採 QT 的模型);QT 現有帳號按姓名對映到 u1–u11,對不上的手動處理。
-4. **要不要走到 A**:現在不用決定,做完 B 再看。
+> 一個客戶(CRM)→ 若干商機(CRM)→ 報價(CRM,含 QT 服務價目)→ 合同(CRM,line items 記錄精剪/AI/數字人條數)→ 製作進度(QT,掛合同)→ 帳號成效與點數餘額(QT 擴充,掛客戶)。收入 = 已簽署合同按幣別加總;自營 IP 收入另計。
 
-## 四、執行計劃(每步都有驗收,可獨立上線)
+QT 的 9 個 entity 合併後的去向:`customers`→併入 CRM 客戶 + `qtProfiles`;`customers[].quotes`→CRM `quotes`/`contracts`;`customers[].aiPoints`→`creditLedger`;`productions`→保留(加 contractId);`tasks`→保留;`ips, accounts, videos, brolls, brollKeywords`→保留;`analyses`→刪除(程式碼中未使用的死 entity)。
 
-### 階段 C-1:SSO(半天)
-- 兩個容器的 `JWT_SECRET` 設成同一值(GitHub secrets 兩邊同步);WowCRM 後端讀 token 時容忍多出的 `role` 欄位(目前忽略,不用改)
-- 前端:兩邊 localStorage key 不同(`wowcrm:token` / `qtstation:token`),改成共用一個 key 或登入後同時寫兩個
-- 驗收:在 wowcrm 登入後直接開 qtstation 不用再登;反之亦然
-- 風險:兩邊 user id 不同(u1 vs u_xxx)→ token 的 `sub` 在對方系統查不到使用者 → 先做階段 C-2 的對映或直接做決定 3
+## 四、需要你決定的事
 
-### 階段 C-2:使用者對齊(半天)
-- WowCRM `users` 表加 `role`/`active`(QTStation `db.js` 已有 `ensureColumn` 遷移寫法可直接抄)
-- QTStation 種子改成與 WowCRM 相同的 u1–u11(保留 admin),既有 QT 記錄的 `owner` 用腳本改對映後的 id
-- 驗收:兩邊 `GET /api/auth/me` 回同一個 id;QT 記錄 owner 顯示正確姓名
+1. **兩邊的客戶是不是同一批人?** 若 QT 的客戶多數已在 CRM,搬遷時要做「姓名/電話比對 + 人工確認」的合併清單;若基本不重疊,直接匯入。這決定階段 1 是半天還是兩天。
+2. **QT 的簽約要不要真的變成 CRM 合同?** 建議要(這樣「合約條數 / 合約期」有唯一來源,製作進度能掛合同)。代價:QT 前端的報價 Tab 要改讀 CRM API 或直接移除、改在 CRM 開報價。
+3. **權限**:CRM entity 維持負責人限定;QT 的 `productions/tasks/ips/...` 維持全員可寫(按 entity 設 policy)。
+4. **使用者主檔**:CRM u1–u11 為主,補 role/active;QT 帳號按姓名對映。
 
-### 階段 C-3:客戶關聯(1 天)
-- QT 的客戶表單加「對應 CRM 客戶」下拉(呼叫 WowCRM `GET /api/customers`,同 token 可直接打)
-- 存 `crmCustomerId`;QT 客戶卡片顯示 CRM 端的負責人/商機數(跨域讀取)
-- 驗收:在 QT 選了 CRM 客戶後,兩邊點開能互相跳轉
+## 五、執行計劃(業務優先;每階段可獨立上線)
 
-### 階段 B-1:後端合流(3–5 天)
-- 以 WowCRM `server/` 為底,合入 QT 獨有的:`/api/auth/password`、`/api/admin/users*`、`/api/state`;`ENTITIES` 加入 QT 的 9 個(`customers` 改 `qtClients`)
-- 權限改成「按 entity 的 policy 表」(決定 1);`POST` 重複 id 統一為報錯(或按 entity 允許 upsert);bulk 統一 1000 筆並保留 docNo 邏輯只給 quotes/contracts
-- 靜態服務:server 同時 serve `dist/`(React)與 `workbench/`(原生),路徑 `/` 與 `/qt/`;nginx 兩個子域指到同一 port,或保留兩個子域各 proxy 到不同路徑
-- QTStation 的 `ops/merge-preview.sh` 已存在,先看它做到哪,可能可直接用來做資料庫合併預演
-- 驗收:全部既有 API 冒煙測試通過(照 `docs/playbook/diagnosis.md` 第三節);兩個前端在同一 server 下都能登入、讀寫
-- 風險:同一 SQLite 檔的寫入量翻倍——目前 11 人量級不是問題,但 crawler 匯入(bulk 1000 筆)時要避開尖峰
+### 階段 0:定義凍結(半天,只是決定)
+四個決定 + 幣別規則:QT 資料全部標 HKD;CRM 儀表板繼續分幣別顯示。
 
-### 階段 B-2:資料搬遷(1 天,需停機半小時)
-- 部署前備份兩個 DB(QT 的 deploy.yml 已有備份段可抄)
-- 腳本:讀 `qtstation.db` 的 records/audit → 改 entity 名(`customers`→`qtClients`)、改 owner id → 寫入 `wowcrm.db`;先在 /tmp 用兩份副本跑一遍,比對筆數
-- 驗收:合併後每個 entity 的筆數 = 兩邊原筆數之和;抽 10 筆比對 JSON 一致;審計記錄完整
-- 回滾:保留舊容器與舊 DB 一週,nginx 切回即可
+### 階段 1:客戶對齊(0.5–2 天)
+- 腳本讀 `qtstation.db` 的 customers,與 CRM customers 用「名稱正規化 + 電話」比對,輸出三類:確定同一、疑似、QT 獨有 → 人工確認疑似
+- 確認後:QT 獨有的建為 CRM 客戶(source=「短視頻運營」,owner 由你指定);phone/wechat 建 `contacts`;專屬欄位建 `qtProfiles`;QT 記錄寫入 `crmCustomerId`
+- 驗收:每個 QT 客戶都有 crmCustomerId;CRM 客戶數 = 原數 + QT 獨有數;抽 10 筆核對
+- 這一步完成後兩邊已可互查,即使後面都不做也有價值
 
-### 階段 A(可選,之後再評):QTStation UI 重寫成 React
-- 9 個 entity、儀表板圖表(Chart.js)、Word 匯入(mammoth)、爬蟲配置頁——按 wowcrm 的 view 慣例逐頁重做
-- 不建議與 B 同時做;先讓 B 穩定一個月
+### 階段 2:報價與合同統一(2–3 天)
+- 建 `pricings`:精剪視頻、AI 視頻、數字人定制、AI 點數包、投流…(價格從 QT 既有報價 items 統計出常見單價)
+- 搬 QT quotes → CRM `quotes`(HKD,docNo 沿用 `Q-YYYY-NNN` 由 `nextDocSeq` 補發);signed 的再建 `contracts`(已簽署;items 加上精剪/AI/數字人條數;signDate/startDate/endDate 取自客戶)
+- `customers[].aiPoints` → `creditLedger`
+- 驗收:CRM 儀表板 HKD 桶的簽約金額 = QT 原 `totalSignedRevenue`(逐客戶核對);合同 items 的條數合計 = QT `contractTotal`
+- 前端:QT 的報價 Tab 改成唯讀連結「在 CRM 查看」;新報價在 CRM 開(有價目、有毛利、有列印)
 
-## 五、不動的東西
-- 爬蟲(`workbench/crawler/*.py`)是本地跑的 Python,與合併無關,照舊
-- QTStation `AUDIT.md` 提到的 cookie 明文風險是爬蟲配置頁的問題,合併不會使其變好或變壞;維持「真 cookie 只放伺服器端 cookies.json」的建議
-- 部署 workflow 各自維持到 B-1 完成;合流後採 QT 的 `paths-ignore` 寫法(改 docs 不觸發部署)
+### 階段 3:收入視角合一(1 天)
+- CRM 儀表板加:「自營 IP 月收入」卡(讀 `ips`)、「客戶點數餘額總額」卡(讀 `creditLedger`)
+- 客戶詳情加:點數餘額、製作進度摘要、帳號成效(讀 `qtProfiles`)
+- 驗收:一個畫面能回答「本月簽了多少、IP 賺多少、客戶還有多少預付」,三個數字分開不混
+
+### 階段 4:交付掛合同(1 天)
+- `productions` 加 `contractId`;既有資料按 customerId → 該客戶最新已簽署合同回填
+- CRM 合同詳情顯示製作進度(已完成/進行中/待製作 條數,點進去開 QT)
+- 驗收:每筆有簽約的 production 都掛到合同;合同「執行中→已完成」可由製作全部 completed 時提示
+
+### 階段 5(技術合流,讓上面長期可維護;1–2 週)
+- 一個 server、一個 SQLite:以 WowCRM `server/` 為底合入 QT 的使用者管理與 `/api/state`;`ENTITIES` 加入 QT 保留的 entity;權限按 entity policy 表;同時 serve React `dist/` 與 `workbench/`
+- 資料搬遷腳本先在 /tmp 用兩份副本預演(QT 已有 `ops/merge-preview.sh`,先看能否直接用);保留舊容器一週可回滾
+- 驗收:全部既有 API 冒煙通過(`docs/playbook/diagnosis.md` 第三節);兩個前端同一 token 登入
+- 在階段 5 之前,階段 1–4 可用「共用 JWT_SECRET + 跨域讀對方 API」先跑,不必等合流
+
+### 可選:QT 介面重寫成 React 併入 CRM 側欄
+只有在階段 5 穩定後、且你想要單一介面時再做;成本是重做圖表(Chart.js)、Word 匯入(mammoth)、爬蟲配置頁。
+
+## 六、不動的東西
+- 爬蟲(`workbench/crawler/*.py`)本地跑,與合併無關
+- `AUDIT.md` 的 cookie 明文風險屬爬蟲配置頁,維持「真 cookie 只放伺服器端」的建議
+- IP 孵化、爆款視頻、對標帳號、B-roll 四個模組原樣保留,只是換成讀同一份使用者
