@@ -21,4 +21,4 @@
 - 規則:順序編號一律取現存最大序號+1(見 server/src/db.js nextDocSeq)
 
 ## 待辦觀察(非教訓,做別的任務時看到的可疑點;處理後劃掉)
-- `claude/wowcrm-upgrade-qq4bn` 分支上有 4 個 audit commits(A1–A6,幣別修正/刪除警告/待辦卡/文件編號)尚未開 PR、未合併 —— 2026-07-04
+- (已處理 2026-09-25:上述 audit commits 已於 PR #42 合併部署)
