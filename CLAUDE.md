@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-WOW CRM — 多產品 Pipeline CRM,給澳門 11 人業務團隊用。生產環境:`wowcrm.wowmac.com`,PR 合併到 master 即自動部署,**改動會直接影響真實使用者與真實資料**。
+WOW CRM — 多產品 Pipeline CRM,給澳門 11 人業務團隊用。生產環境:`wowcrm.wowmac.com`,部署採手動觸發與預設關閉的 gate(見 DEPLOY.md),**改動會直接影響真實使用者與真實資料**。
 
 ## 技術棧
 

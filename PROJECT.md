@@ -17,7 +17,7 @@
 ## 2. 線上環境
 
 - **URL**：https://wowcrm.wowmac.com
-- **登入**：選帳號（11 個業務）+ 密碼（GitHub Secret `DEFAULT_PASSWORD`）
+- **登入**：選帳號（11 個業務）+ 密碼（主機既有設定；部署不重設密碼）
 - **HTTPS**：Let's Encrypt（certbot 自動續約）
 - **右下角顯示 git SHA**，用來驗證部署是否到位
 
@@ -39,69 +39,30 @@
 - `@fastify/static` 同 server 服務前端 dist
 
 ### 資料庫
-- **SQLite**，檔案在 EC2 host 的 `/var/lib/wowcrm/wowcrm.db`
+- **SQLite**，檔案在 指定目標主機的 `/srv/data/wowcrm/wowcrm.db`（實際掛載須先核對）
 - Schema 極簡：`users` 表 + `records` 表（generic JSON storage，所有 entity 共用）
 - 11–15 人 / 預期 ~1000 客戶 / 年 → 5 年 50k 紀錄上限，SQLite 完全勝任
 
 ### 部署
 - Docker（multi-stage：build frontend → install backend deps → runtime image）
 - Image 推到 `ghcr.io/clawrus928/wowcrm`
-- 靠 GitHub Actions 推到 EC2（SSH + docker compose pull）
+- GitHub Actions 手動部署到指定主機（CI、人工 gate、固定 digest）；以 DEPLOY.md 為準
 - nginx 在 EC2 反向代理 + HTTPS（與另一個專案 `ledger` 共用同台）
 
 ---
 
 ## 4. 部署架構
 
-```
-            INTERNET
-               │
-               ▼
-        ┌──────────────┐
-        │ EC2 t3.medium │  Ubuntu, Public IP 13.236.95.177
-        │   13.236.95.x │
-        └──────┬────────┘
-               │ port 80 / 443 (對外開)
-               ▼
-        ┌──────────────┐
-        │     nginx     │  /etc/nginx/conf.d/{ledger,wowcrm}.conf
-        └──┬────────────┘
-           │
-           ├──── ledger.wowmac.com  ──→  127.0.0.1:8000  (systemd + venv)
-           │
-           └──── wowcrm.wowmac.com  ──→  127.0.0.1:8002  (Docker 容器)
-                                              │
-                                              ▼
-                                     /var/lib/wowcrm/wowcrm.db
-                                     （volume mount，永遠不被 deploy 動到）
-```
+指定目標為新加坡 `43.160.242.177`，但 Cloud 尚未驗證主機、DNS 或實際掛載。
 
-### Port 配給表
+- `wowcrm.wowmac.com` → 反向代理 → `127.0.0.1:8002` → `wowcrm:8080`。
+- 部署目錄 `/srv/apps/wowcrm`；資料目錄 `/srv/data/wowcrm` 掛到容器 `/data`。
+- 容器 DB_PATH 為 `/data/wowcrm.db`，既有 `.env` 保留，不從 GitHub 覆寫。
+- PR/push master 只執行 CI；正式部署採手動觸發、master 限制、預設關閉的 gate 與 production 審批。
+- 部署前核對既有 mount、取得一致性 SQLite 備份；使用 immutable digest，失敗嘗試回復舊 image/config。
+- GitHub 管理設定、首次主機接管與任何資料遷移須分別完成；程式碼不會自動替代這些步驟。
 
-| Port | App | Subdomain |
-|---|---|---|
-| 8000 | ledger | ledger.wowmac.com |
-| 8001 | _空_ | — |
-| **8002** | **wowcrm** | **wowcrm.wowmac.com** |
-
-新加 project 時 +1。
-
-### 部署流程
-
-```
-push to master  →  GitHub Action
-                      │
-                      ├─ build Docker image
-                      ├─ push to ghcr.io
-                      └─ SSH to EC2
-                            │
-                            ├─ 寫 /opt/wowcrm/docker-compose.yml + .env
-                            ├─ docker compose pull
-                            ├─ docker compose up -d --remove-orphans
-                            └─ 健康檢查 curl 127.0.0.1:8002/api/health
-```
-
-每次 deploy 約 3–5 分鐘。資料保存在 host volume，container 換掉不影響。
+詳細設定、Secrets 名稱與回復限制見 [DEPLOY.md](DEPLOY.md)。
 
 ---
 
@@ -260,8 +221,8 @@ u11 李蔭良
 │   └── deploy.yml             build image → ghcr → SSH 部署
 │
 ├── Dockerfile                 multi-stage build
-├── docker-compose.yml         本地參考用（EC2 上由 workflow 寫入）
-├── DEPLOY.md                  EC2 一次性設定
+├── docker-compose.yml         受版控的唯一部署 Compose 來源
+├── DEPLOY.md                  指定主機的部署與接管規範
 ├── DEPLOY_AGENT.md            給 agent 的部署任務書
 ├── SUBDOMAIN_SETUP.md         接 nginx + certbot 的步驟
 ├── AGENT_DEBUG_HTTPS.md       HTTPS 連不上時的除錯任務書
@@ -272,15 +233,9 @@ u11 李蔭良
 
 ## 10. 環境變數 / Secrets
 
-### GitHub Secrets（5 個）
+### GitHub Secrets / Variables
 
-| 名稱 | 用途 |
-|---|---|
-| `EC2_HOST` | EC2 公開 IP |
-| `EC2_USER` | SSH 用戶（`ubuntu`） |
-| `EC2_SSH_KEY` | 私鑰 PEM |
-| `JWT_SECRET` | JWT 簽章用，`openssl rand -base64 32` 產生 |
-| `DEFAULT_PASSWORD` | 11 業務的初始密碼 |
+以 DEPLOY.md 的設定表為準：SSH 沿用 EC2_HOST、EC2_USER、EC2_SSH_KEY，新增可信的 WOWCRM_SSH_KNOWN_HOSTS variable；PRODUCTION_DEPLOY_ENABLED 預設關閉。應用 JWT_SECRET、DEFAULT_PASSWORD、API_KEY 保留在主機既有 .env，不由 workflow 覆寫。Agent Task 另需 ANTHROPIC_API_KEY 與 AGENT_TASK_ENABLED。
 
 ### 後端環境變數（在 docker-compose / .env）
 
@@ -307,7 +262,7 @@ u11 李蔭良
 - [x] 響應式（桌面 + 手機）
 - [x] 版本標示
 - [x] EC2 + nginx + HTTPS 部署
-- [x] CI/CD（push master → 自動 deploy）
+- [x] CI/CD（push master → CI；正式部署另行手動核准）
 
 ---
 
@@ -332,14 +287,14 @@ u11 李蔭良
 git checkout -b feat/xxx
 # ...改檔...
 npm run build              # 驗證前端
-cd server && npm install   # 第一次需要
-node src/index.js          # 本地後端
+npm ci --prefix server     # 第一次需要
+python3 scripts/smoke.py    # /tmp DB + loopback 冒煙
 
 # 提交
 git push -u origin feat/xxx
 # 在 GitHub UI 開 PR → 合併到 master
 
-# 自動部署
+# 合併不部署；正式部署另依 DEPLOY.md 授權
 # 監控：https://github.com/clawrus928/wowcrm/actions
 # 部署完打開 https://wowcrm.wowmac.com 看右下角 SHA 對不對
 ```
@@ -347,40 +302,17 @@ git push -u origin feat/xxx
 ### 本地跑後端（不接 EC2）
 
 ```bash
-cd server
-npm install
-DB_PATH=/tmp/wowcrm-dev.db PORT=8080 node src/index.js
-# 另一個 terminal
-npm run dev    # 前端 vite dev server，預設打 same-origin /api
+npm ci --prefix server
+DB_PATH=/tmp/wowcrm-dev.db HOST=127.0.0.1 PORT=8080 npm --prefix server run dev
+# 另一個 terminal，在 repo 根目錄
+VITE_API_URL=http://127.0.0.1:8080 npm run dev -- --host 127.0.0.1
 ```
 
 ---
 
-## 14. 常用 EC2 操作
+## 14. 主機操作
 
-```bash
-ssh ubuntu@13.236.95.177
-
-# 看 container 狀態
-docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-
-# 看 wowcrm logs
-docker logs wowcrm --tail=100 -f
-
-# 手動重啟
-cd /opt/wowcrm && docker compose restart
-
-# 備份 DB（WAL 模式下「不要」直接 cp，會漏掉未 checkpoint 的 -wal 交易、拿到不一致副本）
-# 用 SQLite 的線上備份，可在容器運行時安全執行：
-sudo sqlite3 /var/lib/wowcrm/wowcrm.db ".backup '/home/ubuntu/wowcrm.backup.$(date +%F).db'"
-# 若 host 沒裝 sqlite3：sudo apt-get install -y sqlite3
-# （或在容器內：docker exec wowcrm node -e "require('better-sqlite3')('/data/wowcrm.db').backup('/data/backup.db')"）
-
-# 看 nginx
-sudo systemctl status nginx
-sudo nginx -T 2>/dev/null | grep -A 20 "wowcrm.wowmac.com"
-sudo tail -50 /var/log/nginx/error.log
-```
+依 DEPLOY.md 的主機接管與備份規範處理。先唯讀核對現有容器與資料路徑；不要套用歷史 EC2 主機命令、直接重啟，或 cp 運行中的 SQLite 主檔。此 Cloud 尚未完成主機核對。
 
 ---
 
@@ -388,7 +320,7 @@ sudo tail -50 /var/log/nginx/error.log
 
 - **storage key 升版會清前端 localStorage**：目前是 `wowcrm:v2`，要再升 → 用戶 token 會被踢，要重新登入
 - **container 必須 bind `127.0.0.1:8002` 不是 `0.0.0.0:3002`**：不然會繞過 nginx + 沒 HTTPS
-- **GitHub Action 的 heredoc 會覆蓋 EC2 上的 docker-compose.yml**：每次 deploy 都重寫，不要直接在 EC2 改這檔（改 repo 後重新 deploy）
+- **部署只有一個 Compose 來源**：修改 repo 的 docker-compose.yml，經驗證及人工核准後部署；主機 .env 不覆寫
 - **certbot 改 nginx conf 後，repo 裡的 `nginx/wowcrm.conf` 會跟 EC2 不同步**：以 EC2 上的為準（包含 443 server block + ssl_certificate 路徑）
 - **資料 owner = null 的 record**：理論上不該發生，但若有舊資料，任何人都能改（沒 owner → 跳過權限檢查）
 - **Pipeline drag 在 Safari 行動版**：HTML5 native drag 不太順，所以有保留 prev/next 按鈕

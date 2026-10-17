@@ -6,7 +6,9 @@ ARG BUILD_TIME=unknown
 ENV VITE_GIT_SHA=$GIT_SHA
 ENV VITE_BUILD_TIME=$BUILD_TIME
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -s /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
+    npm ci
 COPY index.html vite.config.js ./
 COPY public ./public
 COPY src ./src
@@ -19,11 +21,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 build-essential \
     && rm -rf /var/lib/apt/lists/*
 COPY server/package.json server/package-lock.json* ./
-RUN npm install --omit=dev
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -s /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
+    npm ci --omit=dev
 
 # ── Stage 3: runtime ────────────────────────────────────────
 FROM node:20-bookworm-slim
 WORKDIR /srv
+ARG GIT_SHA=dev
+LABEL org.opencontainers.image.revision=$GIT_SHA
 
 # Tini for clean shutdown
 RUN apt-get update && apt-get install -y --no-install-recommends tini \

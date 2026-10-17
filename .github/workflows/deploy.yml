@@ -1,101 +1,73 @@
-name: Deploy to EC2
+name: Deploy WOW CRM
 
+# No push trigger: merging this repair must not deploy or publish an image.
 on:
-  push:
-    branches: [master, main]
   workflow_dispatch:
+    inputs:
+      confirm_host:
+        description: 'Enter 43.160.242.177 after reviewing the production preflight'
+        required: true
+        type: string
 
 permissions:
   contents: read
-  packages: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: clawrus928/wowcrm
+concurrency:
+  group: wowcrm-production
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  authorize:
     runs-on: ubuntu-latest
+    steps:
+      - name: Require master and an explicitly enabled production deployment
+        env:
+          DEPLOY_ENABLED: ${{ vars.PRODUCTION_DEPLOY_ENABLED }}
+          CONFIRM_HOST: ${{ inputs.confirm_host }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/master
+          test "$DEPLOY_ENABLED" = true
+          test "$CONFIRM_HOST" = 43.160.242.177
 
+  ci:
+    needs: authorize
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image
+      - name: Build immutable release
+        id: image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ghcr.io/clawrus928/wowcrm:${{ github.sha }}
           build-args: |
             GIT_SHA=${{ github.sha }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp }}
+            BUILD_TIME=${{ github.run_id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          script: |
-            set -e
-            sudo mkdir -p /opt/wowcrm /var/lib/wowcrm
-            sudo chown $USER:$USER /opt/wowcrm
-            cd /opt/wowcrm
-
-            # Write docker-compose.yml from secret-driven template
-            cat > docker-compose.yml <<'YAML'
-            services:
-              app:
-                image: ghcr.io/clawrus928/wowcrm:latest
-                container_name: wowcrm
-                restart: unless-stopped
-                ports:
-                  - "127.0.0.1:8002:8080"
-                volumes:
-                  - /var/lib/wowcrm:/data
-                environment:
-                  JWT_SECRET: ${JWT_SECRET}
-                  DEFAULT_PASSWORD: ${DEFAULT_PASSWORD}
-                  API_KEY: ${API_KEY}
-            YAML
-
-            # Write .env from GitHub secrets
-            cat > .env <<EOF
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            DEFAULT_PASSWORD=${{ secrets.DEFAULT_PASSWORD }}
-            API_KEY=${{ secrets.API_KEY }}
-            EOF
-            chmod 600 .env
-
-            # Pull new image and restart
-            docker compose pull
-            docker compose up -d --remove-orphans
-
-            # Wait for health
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-              if curl -fsS http://127.0.0.1:8002/api/health > /dev/null 2>&1; then
-                echo "✅ Deploy verified"
-                exit 0
-              fi
-              echo "Waiting for app... ($i/10)"
-              sleep 2
-            done
-            echo "❌ Health check failed"
-            docker logs wowcrm --tail=50
-            exit 1
+      - name: Verify existing mount, back up SQLite, and deploy exact digest
+        env:
+          WOWCRM_IMAGE: ghcr.io/clawrus928/wowcrm@${{ steps.image.outputs.digest }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          WOWCRM_SSH_KNOWN_HOSTS: ${{ vars.WOWCRM_SSH_KNOWN_HOSTS }}
+        run: bash scripts/ssh-deploy.sh

@@ -90,7 +90,7 @@ gh pr create --title "Agent: {中文標題}" --body "由 Hermes Agent 自動提�
 ```
 ✅ 已完成「{需求標題}」的開發。
 PR：{PR_URL}
-請 review 後合併，合併後會自動部署到 https://wowcrm.wowmac.com
+請 review 後合併；合併只執行 CI，正式部署另依 DEPLOY.md 授權。
 ```
 
 **沒有改動：**
@@ -162,29 +162,22 @@ Claude Code 的輸出品質取決於需求描述的清晰度。
 
 ## 部署驗證
 
-PR 合併到 master 後，GitHub Actions 自動部署到 EC2（3–5 分鐘）。
+PR 合併到 master 後只執行 CI。正式部署依 DEPLOY.md，完成主機核對與人工授權後才手動觸發。
 
 確認部署完成：
 ```bash
 curl -s https://wowcrm.wowmac.com/api/health
 ```
 
-回 `{"ok":true}` 就是成功。
+回 `{"ok":true}` 只代表 HTTP 回應；仍須核對 image digest、資料掛載與 DB 身分，見 DEPLOY.md。
 
 頁面右下角的 git SHA 會顯示最新版本。
 
 ---
 
-## 緊急回滾
+## 緊急回復
 
-如果部署後發現問題：
-
-```bash
-cd C:\Users\你的用戶名\wowcrm
-git log --oneline -5              # 找到上一個好的 commit
-git revert HEAD --no-edit         # revert 最新 commit
-git push origin master            # push → 自動重新部署
-```
+依 DEPLOY.md 處理：部署腳本會嘗試恢復上一個 image/config，但不自動還原資料庫。若失敗或涉及 schema 變更，先核對主機現況與備份，提出具體回復方案並取得授權。不要直接 push master、重啟或覆蓋 SQLite 來嘗試回復。
 
 ---
 
