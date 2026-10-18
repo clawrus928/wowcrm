@@ -9,3 +9,11 @@ dist
 crm-spec.md
 README*.md
 .DS_Store
+.env
+.env.*
+**/.env
+**/.env.*
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/__pycache__

@@ -1,12 +1,19 @@
 services:
   app:
-    image: ghcr.io/clawrus928/wowcrm:latest
+    image: ${WOWCRM_IMAGE:?Use the approved immutable image digest}
     container_name: wowcrm
     restart: unless-stopped
     ports:
       - "127.0.0.1:8002:8080"
     volumes:
-      - /var/lib/wowcrm:/data
+      - type: bind
+        source: /srv/data/wowcrm
+        target: /data
+        bind:
+          create_host_path: false
     environment:
-      JWT_SECRET: ${JWT_SECRET}
-      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD}
+      NODE_ENV: production
+      DB_PATH: /data/wowcrm.db
+      JWT_SECRET: ${JWT_SECRET:?Existing production JWT_SECRET is required}
+      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:?Existing production DEFAULT_PASSWORD is required}
+      API_KEY: ${API_KEY:?Existing production API_KEY is required}

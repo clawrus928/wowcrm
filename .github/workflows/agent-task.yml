@@ -4,100 +4,84 @@ on:
   issues:
     types: [labeled]
 
+permissions:
+  contents: read
+
 jobs:
   process:
-    if: github.event.label.name == 'agent-task'
+    if: >-
+      github.event.label.name == 'agent-task' &&
+      github.event.sender.login == github.repository_owner &&
+      vars.AGENT_TASK_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     permissions:
       contents: write
       pull-requests: write
       issues: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
-      - name: Install frontend deps
-        run: npm ci
-
-      - name: Install server deps
-        run: cd server && npm install
-
-      - name: Run Claude Code
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix server
+      - name: Prepare issue text as data, never as shell source
+        run: |
+          mkdir -p "$RUNNER_TEMP/wowcrm-task"
+          python3 scripts/agent_task.py "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/wowcrm-task"
+          cp scripts/agent_task.py "$RUNNER_TEMP/wowcrm-task/agent_task.py"
+      - name: Run pinned Claude Code
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          # Claude Code CLI processes the issue and makes changes
-          npx -y @anthropic-ai/claude-code --print \
-            "You are working on the WOW CRM project. Read CLAUDE.md and PROJECT.md for context.
-
-          Implement the following request. Make clean, focused changes.
-          After making changes, run 'npm run build' to verify the build passes.
-          If build fails, fix the errors before finishing.
-
-          ## Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
-
-          ${{ github.event.issue.body }}" \
-            --allowedTools "Edit,Write,Bash,Read"
-
-      - name: Check for changes
+          npx --yes @anthropic-ai/claude-code@2.1.11 --print \
+            --allowedTools "Edit,Write,Bash,Read" < "$RUNNER_TEMP/wowcrm-task/prompt.txt"
+      - name: Reject infrastructure changes and detect application changes
         id: check
         run: |
           git add -A
+          python3 - <<'PY'
+          import subprocess
+          paths = subprocess.check_output(['git', 'diff', '--cached', '--name-only', '-z']).decode().split('\0')
+          blocked = [p for p in paths if p.startswith(('.github/', 'scripts/', 'tests/')) or p in (
+              'Dockerfile', 'docker-compose.yml', 'CLAUDE.md', '.dockerignore', '.gitignore')]
+          if blocked:
+              raise SystemExit('Agent must not modify CI/deployment infrastructure')
+          PY
           if git diff --cached --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "No changes were made"
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
           else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Changes detected:"
-            git diff --cached --stat
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Create PR
+      - name: Mandatory verification before opening a PR
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          npm run build
+          node --check server/src/index.js
+          node --check server/src/db.js
+          node --check server/src/validate.js
+          python3 -m unittest discover -s tests -v
+          python3 scripts/smoke.py
+      - name: Open a draft PR for review
         if: steps.check.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          BRANCH="agent/issue-${{ github.event.issue.number }}"
-          git config user.name "WOW CRM Agent"
-          git config user.email "agent@wowcrm.wowmac.com"
-          git checkout -b "$BRANCH"
-          git commit -m "Agent: ${{ github.event.issue.title }} (#${{ github.event.issue.number }})"
-          git push origin "$BRANCH"
-          PR_URL=$(gh pr create \
-            --title "Agent: ${{ github.event.issue.title }}" \
-            --body "Automated implementation for #${{ github.event.issue.number }}.
-
-          > $(echo '${{ github.event.issue.body }}' | head -c 500)
-
-          ---
-          _This PR was created automatically by Claude Code via the agent-task workflow._" \
-            --base master)
-          echo "PR created: $PR_URL"
-          gh issue comment ${{ github.event.issue.number }} \
-            --body "✅ 已完成實作，PR 已開好：$PR_URL
-
-          請 review 後合併。合併後會自動部署到 EC2。"
-
-      - name: Comment if no changes
-        if: steps.check.outputs.changed == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh issue comment ${{ github.event.issue.number }} \
-            --body "ℹ️ Claude Code 分析了這個請求，但沒有產生任何程式碼改動。
-
-          可能的原因：
-          - 請求已在現有程式碼中實現
-          - 請求描述不夠具體，無法產生改動
-          - 需要更多背景資訊
-
-          請補充細節後重新加上 \`agent-task\` label。"
+          python3 "$RUNNER_TEMP/wowcrm-task/agent_task.py" "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/wowcrm-task"
+          issue_number=$(python3 -c 'import json,os; print(int(json.load(open(os.environ["GITHUB_EVENT_PATH"]))["issue"]["number"]))')
+          git config user.name 'WOW CRM Agent'
+          git config user.email 'agent@wowcrm.wowmac.com'
+          git switch -c "agent/issue-$issue_number-$GITHUB_RUN_ID"
+          git commit -F "$RUNNER_TEMP/wowcrm-task/commit.txt"
+          gh auth setup-git
+          git push --set-upstream origin HEAD
+          gh pr create --draft --base master \
+            --title "$(cat "$RUNNER_TEMP/wowcrm-task/title.txt")" \
+            --body-file "$RUNNER_TEMP/wowcrm-task/pr-body.txt"

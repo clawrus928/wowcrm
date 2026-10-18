@@ -1,5 +1,10 @@
 # 踩雷紀錄(新條目加最上面;格式與寫入時機見 maintenance.md 第 2 節)
 
+## 2026-10-18 Compose 正規化會省略 false 欄位
+- 症狀:測試 fixture 通過，但實際 docker compose config JSON 缺少 create_host_path，導致安全配置被拒絕
+- 根因:Compose 序列化會省略 false；手寫 fixture 與實際輸出不同
+- 規則:部署 guard 要驗證真正的 Compose 輸出；接受正規化的省略值，但拒絕 create_host_path=true，並保留回歸測試
+
 ## 2026-07-04 build 綠燈不代表後端沒壞
 - 症狀:server/src 改動後 `npm run build` 通過,但 build 根本不編譯 server 目錄
 - 根因:Vite build 只覆蓋前端;後端只有 node 執行期才會暴露錯誤

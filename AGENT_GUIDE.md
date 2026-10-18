@@ -84,7 +84,7 @@ curl -s \
 
 ## 追蹤部署
 
-PR 合併到 master 後，deploy workflow 自動跑（3–5 分鐘）。
+PR 合併只執行 CI，不會部署。正式部署需依 DEPLOY.md 完成主機核對與人工授權。
 
 驗證部署完成：
 ```bash
