@@ -364,6 +364,11 @@ function PipelineCard({
       <div style={{ fontSize: 11, color: T.textTertiary, marginBottom: 6 }}>
         {cust?.name || "—"} · {getRep(deal.owner)?.name}
       </div>
+      {deal.salesStage && (
+        <div style={{ fontSize: 10, color: T.textSecondary, marginBottom: 6 }}>
+          銷售：{deal.salesStage}{deal.winProbability != null ? ` · ${deal.winProbability}%` : ""}
+        </div>
+      )}
       <div
         style={{
           fontSize: 13,

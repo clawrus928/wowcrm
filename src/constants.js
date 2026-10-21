@@ -49,6 +49,15 @@ export const ADDON_PRESETS = [
 ];
 export const CUSTOMER_STATUSES = ["未處理", "初訪", "意向", "跟進中", "報價", "成交", "暫時擱置"];
 export const DEAL_STATUSES = ["進行中", "已成交", "已流失"];
+export const SALES_STAGE_PROBABILITY = {
+  "初步接洽": 10,
+  "需求確定": 30,
+  "方案／報價": 50,
+  "談判／合同": 80,
+  "贏單": 100,
+  "輸單": 0,
+};
+export const SALES_STAGES = Object.keys(SALES_STAGE_PROBABILITY);
 
 // 跟進紀錄(activity)的類型
 export const ACTIVITY_KINDS = ["電話", "拜訪", "會議", "Email", "訊息", "備註"];

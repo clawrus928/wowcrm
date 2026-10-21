@@ -12,6 +12,7 @@ const PRODUCT_STAGES = {
 
 const SOURCES = ["官網", "轉介紹", "客戶介紹", "渠道方", "電話開發", "陌拜", "展覽", "講座/展會", "社群媒體", "Facebook", "廣告", "Call In", "總部線索", "Henson線索", "Carlos線索", "其他"];
 const CURRENCIES = ["MOP", "HKD", "RMB"];
+const SALES_STAGES = ["初步接洽", "需求確定", "方案／報價", "談判／合同", "贏單", "輸單"];
 
 const ENUMS = {
   leads: {
@@ -27,6 +28,7 @@ const ENUMS = {
   deals: {
     product: ["consulting", "hardware", "marketing"],
     status: ["進行中", "已成交", "已流失"],
+    salesStage: SALES_STAGES,
     currency: CURRENCIES,
   },
   quotes: {

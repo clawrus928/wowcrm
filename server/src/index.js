@@ -25,6 +25,7 @@ import {
 } from "./db.js";
 import { validateRecord, isValidStage } from "./validate.js";
 import { recycleInactiveRecords } from "./pool.js";
+import { normalizeDealWrite } from "./sales.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -181,6 +182,7 @@ for (const entity of ENTITIES) {
 
   app.post(`/api/${entity}`, { preHandler: auth }, async (req, reply) => {
     const body = req.body || {};
+    if (entity === "deals") Object.assign(body, normalizeDealWrite(body));
     if (body.inPool && (!req.user.isApiKey || !["leads", "customers"].includes(entity))) {
       return reply.code(403).send({ error: "公海資料只可經核准的匯入建立" });
     }
@@ -220,6 +222,7 @@ for (const entity of ENTITIES) {
     const today = new Date().toISOString().slice(0, 10);
     const prepared = items.map((it) => {
       const data = { ...it };
+      if (entity === "deals") Object.assign(data, normalizeDealWrite(data));
       data.id = data.id || newId(entity);
       if (data.inPool) data.owner = null;
       else if (!data.owner) data.owner = req.user.sub;
@@ -268,6 +271,7 @@ for (const entity of ENTITIES) {
       return reply.code(403).send({ error: "只有負責人可以修改" });
     }
     const patch = req.body || {};
+    if (entity === "deals") Object.assign(patch, normalizeDealWrite(patch, existing));
     if (["leads", "customers"].includes(entity) && !req.user.isApiKey &&
         ["inPool", "poolEnteredAt", "poolTransferMethod", "previousOwner", "claimedAt"].some((key) => Object.hasOwn(patch, key))) {
       return reply.code(403).send({ error: "請使用公海轉入或領取功能" });
