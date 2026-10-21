@@ -92,6 +92,8 @@ export const api = {
   create: (entity, body) => call(`/${entity}`, { method: "POST", body }),
   update: (entity, id, patch) => call(`/${entity}/${id}`, { method: "PATCH", body: patch }),
   remove: (entity, id) => call(`/${entity}/${id}`, { method: "DELETE" }),
+  releaseToPool: (entity, id) => call(`/${entity}/${id}/release`, { method: "POST" }),
+  claimFromPool: (entity, id) => call(`/${entity}/${id}/claim`, { method: "POST" }),
 
   // pipeline / conversion
   moveDealStage: (dealId, stage) =>

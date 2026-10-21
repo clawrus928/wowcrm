@@ -11,6 +11,8 @@ export function MobileBottomNav({ active, onChange }) {
   ];
   const [showMore, setShowMore] = useState(false);
   const moreItems = [
+    { id: "lead_pool", label: "線索池", icon: "◌" },
+    { id: "customer_pool", label: "客戶公海", icon: "◉" },
     { id: "contacts", label: "聯系人", icon: "☷" },
     { id: "deals", label: "商機", icon: "◈" },
     { id: "contracts", label: "合同", icon: "☰" },
@@ -100,7 +102,7 @@ export function MobileBottomNav({ active, onChange }) {
               color:
                 active === v.id ||
                 (v.id === "more" &&
-                  ["contacts", "deals", "contracts", "quotes", "pricings", "channels", "suppliers"].includes(active))
+                  ["lead_pool", "customer_pool", "contacts", "deals", "contracts", "quotes", "pricings", "channels", "suppliers"].includes(active))
                   ? T.accent
                   : T.textTertiary,
               padding: "4px 10px",

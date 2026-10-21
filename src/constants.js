@@ -22,9 +22,9 @@ export const PRODUCTS = [
   },
 ];
 
-export const INDUSTRIES = ["科技", "金融", "零售", "製造", "餐飲", "醫療", "教育", "貿易", "其他"];
+export const INDUSTRIES = ["科技", "金融", "零售", "製造", "餐飲", "醫療", "教育", "貿易", "貿易批發", "美業", "其他"];
 export const LEAD_STATUSES = ["未接觸", "已約訪", "無回應", "流失", "已轉客戶"];
-export const LEAD_SOURCES = ["官網", "轉介紹", "渠道方", "電話開發", "展覽", "社群媒體", "廣告", "其他"];
+export const LEAD_SOURCES = ["官網", "轉介紹", "客戶介紹", "渠道方", "電話開發", "陌拜", "展覽", "講座/展會", "社群媒體", "Facebook", "廣告", "Call In", "總部線索", "Henson線索", "Carlos線索", "其他"];
 
 export const CHANNEL_TYPES = ["二級代理", "外判銷售", "推薦人", "其他"];
 export const CHANNEL_STATUSES = ["啟用", "停用"];
@@ -47,8 +47,17 @@ export const ADDON_PRESETS = [
   { name: "新客戶優惠", kind: "discount", amount: 5 },
   { name: "廣告充值", kind: "fee", amount: 0 },
 ];
-export const CUSTOMER_STATUSES = ["未處理", "初訪", "跟進中", "報價"];
+export const CUSTOMER_STATUSES = ["未處理", "初訪", "意向", "跟進中", "報價", "成交", "暫時擱置"];
 export const DEAL_STATUSES = ["進行中", "已成交", "已流失"];
+export const SALES_STAGE_PROBABILITY = {
+  "初步接洽": 10,
+  "需求確定": 30,
+  "方案／報價": 50,
+  "談判／合同": 80,
+  "贏單": 100,
+  "輸單": 0,
+};
+export const SALES_STAGES = Object.keys(SALES_STAGE_PROBABILITY);
 
 // 跟進紀錄(activity)的類型
 export const ACTIVITY_KINDS = ["電話", "拜訪", "會議", "Email", "訊息", "備註"];

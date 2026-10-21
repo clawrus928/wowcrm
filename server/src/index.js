@@ -24,6 +24,8 @@ import {
   updateRecord,
 } from "./db.js";
 import { validateRecord, isValidStage } from "./validate.js";
+import { recycleInactiveRecords } from "./pool.js";
+import { normalizeDealWrite } from "./sales.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -104,8 +106,13 @@ function clearLoginFail(userId) {
 
 const db = openDb(DB_PATH);
 migrate(db, DEFAULT_PASSWORD);
-
+recycleInactiveRecords(db);
 const app = Fastify({ logger: { level: "info" } });
+const recycleTimer = setInterval(() => {
+  try { recycleInactiveRecords(db); }
+  catch (err) { app.log.error(err, "Automatic pool recycling failed"); }
+}, 60 * 60 * 1000);
+recycleTimer.unref();
 await app.register(cors, { origin: true });
 await app.register(jwt, { secret: JWT_SECRET });
 
@@ -175,8 +182,13 @@ for (const entity of ENTITIES) {
 
   app.post(`/api/${entity}`, { preHandler: auth }, async (req, reply) => {
     const body = req.body || {};
+    if (entity === "deals") Object.assign(body, normalizeDealWrite(body));
+    if (body.inPool && (!req.user.isApiKey || !["leads", "customers"].includes(entity))) {
+      return reply.code(403).send({ error: "公海資料只可經核准的匯入建立" });
+    }
     const id = body.id || newId(entity);
-    if (!body.owner) body.owner = req.user.sub;
+    if (body.inPool) body.owner = null;
+    else if (!body.owner) body.owner = req.user.sub;
     if (!body.created) body.created = new Date().toISOString().slice(0, 10);
     assignDocNos(entity, [body]);
     const errors = validateRecord(entity, body, { partial: false });
@@ -204,11 +216,16 @@ for (const entity of ENTITIES) {
     if (items.length > 500) {
       return reply.code(400).send({ error: "單次最多匯入 500 筆" });
     }
+    if (items.some((it) => it?.inPool) && (!req.user.isApiKey || !["leads", "customers"].includes(entity))) {
+      return reply.code(403).send({ error: "公海資料只可經核准的匯入建立" });
+    }
     const today = new Date().toISOString().slice(0, 10);
     const prepared = items.map((it) => {
       const data = { ...it };
+      if (entity === "deals") Object.assign(data, normalizeDealWrite(data));
       data.id = data.id || newId(entity);
-      if (!data.owner) data.owner = req.user.sub;
+      if (data.inPool) data.owner = null;
+      else if (!data.owner) data.owner = req.user.sub;
       if (!data.created) data.created = today;
       return data;
     });
@@ -247,10 +264,18 @@ for (const entity of ENTITIES) {
   app.patch(`/api/${entity}/:id`, { preHandler: auth }, async (req, reply) => {
     const existing = getRecord(db, entity, req.params.id);
     if (!existing) return reply.code(404).send({ error: "Not found" });
+    if (existing.inPool && !req.user.isApiKey) {
+      return reply.code(403).send({ error: "請先領取公海紀錄" });
+    }
     if (existing.owner && existing.owner !== req.user.sub && !req.user.isApiKey) {
       return reply.code(403).send({ error: "只有負責人可以修改" });
     }
     const patch = req.body || {};
+    if (entity === "deals") Object.assign(patch, normalizeDealWrite(patch, existing));
+    if (["leads", "customers"].includes(entity) && !req.user.isApiKey &&
+        ["inPool", "poolEnteredAt", "poolTransferMethod", "previousOwner", "claimedAt"].some((key) => Object.hasOwn(patch, key))) {
+      return reply.code(403).send({ error: "請使用公海轉入或領取功能" });
+    }
     const errors = validateRecord(entity, patch, { partial: true });
     if (errors.length) return reply.code(400).send({ error: errors.join("；") });
     const updated = updateRecord(db, entity, req.params.id, patch);
@@ -261,6 +286,9 @@ for (const entity of ENTITIES) {
   app.delete(`/api/${entity}/:id`, { preHandler: auth }, async (req, reply) => {
     const existing = getRecord(db, entity, req.params.id);
     if (!existing) return reply.code(404).send({ error: "Not found" });
+    if (existing.inPool && !req.user.isApiKey) {
+      return reply.code(403).send({ error: "請先領取公海紀錄" });
+    }
     if (existing.owner && existing.owner !== req.user.sub && !req.user.isApiKey) {
       return reply.code(403).send({ error: "只有負責人可以刪除" });
     }
@@ -268,6 +296,45 @@ for (const entity of ENTITIES) {
     // Store the deleted snapshot so an accidental delete can be recovered.
     logAudit(db, { actor: req.user.sub, action: "delete", entity, recordId: req.params.id, changes: existing });
     return { ok: true };
+  });
+}
+
+// 公海狀態由專用端點轉換；一般 PATCH 不可繞過領取流程。
+for (const entity of ["leads", "customers"]) {
+  app.post(`/api/${entity}/:id/release`, { preHandler: auth }, async (req, reply) => {
+    const existing = getRecord(db, entity, req.params.id);
+    if (!existing) return reply.code(404).send({ error: "Not found" });
+    if (existing.inPool) return reply.code(409).send({ error: "紀錄已在公海" });
+    if (entity === "leads" && (existing.status === "已轉客戶" || existing.convertedCustomerId)) {
+      return reply.code(409).send({ error: "已轉客戶的線索不能轉入線索池" });
+    }
+    if (existing.owner !== req.user.sub && !req.user.isApiKey) {
+      return reply.code(403).send({ error: "只有負責人可以轉入公海" });
+    }
+    const updated = updateRecord(db, entity, req.params.id, {
+      inPool: true,
+      owner: null,
+      previousOwner: existing.owner || null,
+      poolEnteredAt: new Date().toISOString(),
+      poolTransferMethod: "手動轉入",
+    });
+    logAudit(db, { actor: req.user.sub, action: "release_to_pool", entity, recordId: existing.id,
+      changes: { previousOwner: existing.owner } });
+    return updated;
+  });
+
+  app.post(`/api/${entity}/:id/claim`, { preHandler: auth }, async (req, reply) => {
+    const existing = getRecord(db, entity, req.params.id);
+    if (!existing) return reply.code(404).send({ error: "Not found" });
+    if (!existing.inPool) return reply.code(409).send({ error: "紀錄已被領取" });
+    const updated = updateRecord(db, entity, req.params.id, {
+      inPool: false,
+      owner: req.user.sub,
+      claimedAt: new Date().toISOString(),
+    });
+    logAudit(db, { actor: req.user.sub, action: "claim_from_pool", entity, recordId: existing.id,
+      changes: { from: existing.previousOwner || null, to: req.user.sub } });
+    return updated;
   });
 }
 
@@ -305,6 +372,10 @@ app.get("/api/_audit", { preHandler: auth }, async (req) =>
 app.post("/api/leads/:id/convert", { preHandler: auth }, async (req, reply) => {
   const lead = getRecord(db, "leads", req.params.id);
   if (!lead) return reply.code(404).send({ error: "Not found" });
+  if (lead.inPool) return reply.code(403).send({ error: "請先領取線索" });
+  if (lead.owner && lead.owner !== req.user.sub && !req.user.isApiKey) {
+    return reply.code(403).send({ error: "只有負責人可以轉換線索" });
+  }
   const customerInput = req.body || {};
   if (lead.channelId && !customerInput.channelId) {
     customerInput.channelId = lead.channelId;

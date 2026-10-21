@@ -6,6 +6,8 @@ import {
   DEFAULT_CURRENCY,
   PRODUCTS,
   REPS,
+  SALES_STAGES,
+  SALES_STAGE_PROBABILITY,
 } from "../constants.js";
 import {
   acceptedQuoteSums,
@@ -45,7 +47,9 @@ const EMPTY_DEAL = {
   amount: null,
   currency: DEFAULT_CURRENCY,
   status: "進行中",
+  salesStage: "初步接洽",
   expectedCloseDate: null,
+  winProbability: 10,
   lostReason: "",
   supplierId: null,
   owner: null,
@@ -64,6 +68,7 @@ export function DealsView({
   const [tab, setTab] = useState("all");
   const [fProduct, setFProduct] = useState("all");
   const [fStatus, setFStatus] = useState("all");
+  const [fSalesStage, setFSalesStage] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
 
@@ -81,6 +86,7 @@ export function DealsView({
     if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
     if (fProduct !== "all") d = d.filter((x) => x.product === fProduct);
     if (fStatus !== "all") d = d.filter((x) => x.status === fStatus);
+    if (fSalesStage !== "all") d = d.filter((x) => x.salesStage === fSalesStage);
     if (search)
       d = d.filter(
         (x) =>
@@ -88,7 +94,7 @@ export function DealsView({
           (customerById.get(x.customerId)?.name || "").includes(search)
       );
     return d;
-  }, [deals, customerById, tab, fProduct, fStatus, search, currentUser]);
+  }, [deals, customerById, tab, fProduct, fStatus, fSalesStage, search, currentUser]);
 
   const current = drawer?.id ? deals.find((d) => d.id === drawer.id) : null;
 
@@ -113,12 +119,13 @@ export function DealsView({
     },
     {
       key: "stage",
-      label: "階段",
+      label: "產品進度",
       render: (r) => {
         const p = getProduct(r.product);
         return <span style={s.badge(p?.color || "#666", `${p?.color || "#666"}14`)}>{r.stage}</span>;
       },
     },
+    { key: "salesStage", label: "銷售階段", render: (r) => r.salesStage || "—" },
     {
       key: "amount",
       label: "金額",
@@ -204,6 +211,10 @@ export function DealsView({
               {x}
             </option>
           ))}
+        </select>
+        <select style={s.select} value={fSalesStage} onChange={(e) => setFSalesStage(e.target.value)}>
+          <option value="all">銷售階段：全部</option>
+          {SALES_STAGES.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
         </select>
         <div style={{ marginLeft: "auto" }}>
           <input
@@ -350,11 +361,12 @@ function DealDetailDrawer({
             </span>
           )}
         </DetailRow>
-        <DetailRow label="階段">
+        <DetailRow label="產品進度">
           {product && (
             <span style={s.badge(product.color, `${product.color}14`)}>{deal.stage}</span>
           )}
         </DetailRow>
+        <DetailRow label="銷售階段">{deal.salesStage || "—"}</DetailRow>
         <DetailRow label={explicit ? "預估金額" : "金額"}>
           <span style={{ fontFamily: T.mono, fontWeight: 700 }}>{fmt(eff, deal.currency || DEFAULT_CURRENCY)}</span>
           {!explicit && eff > 0 && (
@@ -378,6 +390,7 @@ function DealDetailDrawer({
         <DetailRow label="狀態">
           <StatusBadge status={deal.status} />
         </DetailRow>
+        {deal.winProbability != null && <DetailRow label="簽單可能性">{deal.winProbability}%</DetailRow>}
         {deal.status === "進行中" && deal.expectedCloseDate && (
           <DetailRow label="預計成交日">
             <span style={{ fontFamily: T.mono }}>{deal.expectedCloseDate}</span>
@@ -528,7 +541,12 @@ function DealDetailDrawer({
 }
 
 export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, onSubmit }) {
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState(() => {
+    const salesStage = initial.salesStage ||
+      (initial.status === "已成交" ? "贏單" : initial.status === "已流失" ? "輸單" : "初步接洽");
+    return { ...initial, salesStage,
+      winProbability: initial.winProbability ?? SALES_STAGE_PROBABILITY[salesStage] };
+  });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -543,6 +561,8 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
     if (form.amount != null && form.amount !== "" && form.amount < 0)
       e.amount = "金額不可為負數";
     if (!stages.includes(form.stage)) e.stage = "請選擇階段";
+    if (form.winProbability != null && (form.winProbability < 0 || form.winProbability > 100))
+      e.winProbability = "請輸入 0 至 100";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -597,6 +617,18 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
       <Field label="階段" error={errors.stage}>
         <SelectInput value={form.stage} onChange={(v) => set("stage", v)} options={stages} />
       </Field>
+      <Field label="銷售階段" hint="銷售流程；與產品進度分開追蹤">
+        <SelectInput
+          value={form.salesStage || "初步接洽"}
+          onChange={(v) => setForm((f) => ({
+            ...f,
+            salesStage: v,
+            status: v === "贏單" ? "已成交" : v === "輸單" ? "已流失" : "進行中",
+            winProbability: SALES_STAGE_PROBABILITY[v] ?? null,
+          }))}
+          options={SALES_STAGES}
+        />
+      </Field>
       <Field label="幣別">
         <SelectInput
           value={form.currency || DEFAULT_CURRENCY}
@@ -614,9 +646,17 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
       <Field label="狀態">
         <SelectInput
           value={form.status}
-          onChange={(v) => set("status", v)}
+          onChange={(v) => setForm((f) => {
+            const salesStage = v === "已成交" ? "贏單" : v === "已流失" ? "輸單"
+              : ["贏單", "輸單"].includes(f.salesStage) ? "初步接洽" : f.salesStage || "初步接洽";
+            return { ...f, status: v, salesStage,
+              winProbability: SALES_STAGE_PROBABILITY[salesStage] ?? null };
+          })}
           options={DEAL_STATUSES}
         />
+      </Field>
+      <Field label="簽單可能性（%）" hint="銷售階段會帶入預設值，可手動調整" error={errors.winProbability}>
+        <NumberInput value={form.winProbability} onChange={(v) => set("winProbability", v)} />
       </Field>
       {form.status === "進行中" && (
         <Field label="預計成交日" hint="可選,用來追蹤進度與逾期">

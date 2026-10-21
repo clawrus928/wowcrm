@@ -10,8 +10,9 @@ const PRODUCT_STAGES = {
   marketing: ["需求確認", "策略規劃", "執行中", "成效追蹤", "已結案"],
 };
 
-const SOURCES = ["官網", "轉介紹", "渠道方", "電話開發", "展覽", "社群媒體", "廣告", "其他"];
+const SOURCES = ["官網", "轉介紹", "客戶介紹", "渠道方", "電話開發", "陌拜", "展覽", "講座/展會", "社群媒體", "Facebook", "廣告", "Call In", "總部線索", "Henson線索", "Carlos線索", "其他"];
 const CURRENCIES = ["MOP", "HKD", "RMB"];
+const SALES_STAGES = ["初步接洽", "需求確定", "方案／報價", "談判／合同", "贏單", "輸單"];
 
 const ENUMS = {
   leads: {
@@ -19,14 +20,15 @@ const ENUMS = {
     source: SOURCES,
   },
   customers: {
-    industry: ["科技", "金融", "零售", "製造", "餐飲", "醫療", "教育", "貿易", "其他"],
-    status: ["未處理", "初訪", "跟進中", "報價"],
+    industry: ["科技", "金融", "零售", "製造", "餐飲", "醫療", "教育", "貿易", "貿易批發", "美業", "其他"],
+    status: ["未處理", "初訪", "意向", "跟進中", "報價", "成交", "暫時擱置"],
     source: SOURCES,
   },
   contacts: {},
   deals: {
     product: ["consulting", "hardware", "marketing"],
     status: ["進行中", "已成交", "已流失"],
+    salesStage: SALES_STAGES,
     currency: CURRENCIES,
   },
   quotes: {
@@ -103,6 +105,11 @@ export function validateRecord(entity, data, { partial = false } = {}) {
     if (stages && !stages.includes(data.stage)) {
       errors.push(`stage「${data.stage}」不屬於產品線 ${data.product}，必須是：${stages.join(" / ")}`);
     }
+  }
+  if (entity === "deals" && !isEmpty(data.winProbability) &&
+      (typeof data.winProbability !== "number" || !Number.isFinite(data.winProbability) ||
+        data.winProbability < 0 || data.winProbability > 100)) {
+    errors.push("winProbability 必須是 0 至 100 的數字");
   }
 
   return errors;
