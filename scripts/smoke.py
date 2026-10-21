@@ -78,6 +78,14 @@ with tempfile.TemporaryDirectory(prefix='wowcrm-smoke-', dir='/tmp') as temp:
             check(request(customer_path, 'PATCH', {'name': '本機測試客戶已更新'}, auth=token)['name'] == '本機測試客戶已更新', 'Customer PATCH persisted')
             second_token = request('/api/auth/login', 'POST', {'userId': 'u2', 'password': password})['token']
             check('error' in request(customer_path, 'PATCH', {'name': 'Should not change'}, auth=second_token, expect=403), 'Non-owner update rejected')
+            check('error' in request(customer_path + '/release', 'POST', auth=second_token, expect=403), 'Non-owner cannot release customer')
+            pooled = request(customer_path + '/release', 'POST', auth=token)
+            check(pooled['inPool'] and pooled['owner'] is None and pooled['previousOwner'] == 'u1', 'Owner releases customer to public pool')
+            check('error' in request(customer_path, 'PATCH', {'name': 'Pool bypass'}, auth=second_token, expect=403), 'Pool record cannot be edited before claim')
+            claimed = request(customer_path + '/claim', 'POST', auth=second_token)
+            check(not claimed['inPool'] and claimed['owner'] == 'u2', 'Another user claims pooled customer')
+            check('error' in request(customer_path + '/claim', 'POST', auth=token, expect=409), 'Claim cannot overwrite assigned owner')
+            check('error' in request(customer_path, 'PATCH', {'inPool': True}, auth=second_token, expect=403), 'Generic PATCH cannot change pool state')
             check('error' in request('/api/customers', 'POST', {}, auth='key', expect=400), 'Missing required name rejected')
             quote = request('/api/quotes', 'POST', {'title': '本機測試報價', 'customerId': customer['id'], 'currency': 'MOP'}, auth='key')
             check(quote['docNo'].startswith('Q-') and request('/api/quotes/' + quote['id'], auth='key')['docNo'] == quote['docNo'], 'Quote document number assigned and persisted')
@@ -85,9 +93,9 @@ with tempfile.TemporaryDirectory(prefix='wowcrm-smoke-', dir='/tmp') as temp:
             check(bulk['count'] == 2 and len(request('/api/leads', auth='key')) == 2, 'Bulk POST and GET round trip')
             request('/api/leads/bulk', 'POST', {'items': [{'id': 'local-rollback', 'name': '回滾測試'}, {'id': bulk['created'][0]['id'], 'name': '重複測試'}]}, auth='key', expect=400)
             check(len(request('/api/leads', auth='key')) == 2 and 'error' in request('/api/leads/local-rollback', auth='key', expect=404), 'Duplicate ID rolls back the whole bulk transaction')
-            check(request(customer_path, 'DELETE', auth=token)['ok'] is True and 'error' in request(customer_path, auth=token, expect=404), 'Customer DELETE followed by GET 404')
+            check(request(customer_path, 'DELETE', auth=second_token)['ok'] is True and 'error' in request(customer_path, auth=token, expect=404), 'Customer DELETE followed by GET 404')
             audit = request('/api/_audit?entity=customers&recordId=' + customer['id'], auth='key')
-            check({r['action'] for r in audit} == {'create', 'update', 'delete'}, 'Create/update/delete audit entries recorded')
+            check({r['action'] for r in audit} == {'create', 'update', 'delete', 'release_to_pool', 'claim_from_pool'}, 'Pool transitions and CRUD are audited')
         finally:
             if proc.poll() is None:
                 proc.terminate()

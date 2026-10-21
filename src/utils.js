@@ -173,6 +173,10 @@ export const getDeal = (id, deals) => deals.find((d) => d.id === id);
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
+export const fmtHongKongDateTime = (value) => value
+  ? new Date(value).toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong", hour12: false })
+  : "—";
+
 // 某筆紀錄的「下次跟進日」= 未完成跟進中最早的日期(無則 null)。
 export function nextFollowUp(activities, relatedType, relatedId) {
   let best = null;

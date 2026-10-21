@@ -16,6 +16,7 @@ import {
   effectiveDealAmount,
   groupBy,
   fmt,
+  fmtHongKongDateTime,
   fmtMulti,
   getRep,
   sumByCurrency,
@@ -32,6 +33,7 @@ import {
   Field,
   MultiSelect,
   SelectInput,
+  TextArea,
   TextInput,
 } from "../components/fields.jsx";
 
@@ -42,12 +44,14 @@ const EMPTY_CUSTOMER = {
   status: "未處理",
   address: "",
   source: "官網",
+  notes: "",
   owner: null,
   collaborators: [],
 };
 
 export function CustomersView({
   store,
+  poolOnly = false,
   drawerSeed,
   onConsumeSeed,
   onOpenContact,
@@ -67,16 +71,16 @@ export function CustomersView({
   }
 
   const filtered = useMemo(() => {
-    let d = customers;
+    let d = customers.filter((x) => !!x.inPool === poolOnly);
     if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
-    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
+    if (tab === "collab") d = d.filter((x) => (x.collaborators || []).includes(currentUser));
     if (fIndustry !== "all") d = d.filter((x) => x.industry === fIndustry);
     if (search)
       d = d.filter(
         (x) => x.name.includes(search) || (x.corpGroup || "").includes(search)
       );
     return d;
-  }, [customers, tab, fIndustry, search, currentUser]);
+  }, [customers, poolOnly, tab, fIndustry, search, currentUser]);
 
   // Indexes for the table columns — built once instead of scanning all
   // deals/quotes on every row.
@@ -160,18 +164,22 @@ export function CustomersView({
           ? r.collaborators.map((id) => getRep(id)?.name).filter(Boolean).join("、")
           : <span style={{ color: T.textTertiary }}>—</span>,
     },
-    { key: "created", label: "創建時間", mono: true },
+    ...(poolOnly ? [
+      { key: "previousOwner", label: "前負責人", render: (r) => getRep(r.previousOwner)?.name || "—" },
+      { key: "poolEnteredAt", label: "轉入時間", mono: true, render: (r) => fmtHongKongDateTime(r.poolEnteredAt) },
+      { key: "poolTransferMethod", label: "轉入方式" },
+    ] : [{ key: "created", label: "創建時間", mono: true }]),
   ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <PageHeader
-        title="客戶"
+        title={poolOnly ? "客戶公海" : "客戶"}
         count={filtered.length}
-        addLabel="新增客戶"
-        onAdd={() => setDrawer({ mode: "create" })}
+        addLabel={poolOnly ? undefined : "新增客戶"}
+        onAdd={poolOnly ? undefined : () => setDrawer({ mode: "create" })}
       />
-      <OwnerTabs active={tab} onChange={setTab} />
+      {!poolOnly && <OwnerTabs active={tab} onChange={setTab} />}
       <FilterRow>
         <select
           style={s.select}
@@ -236,6 +244,21 @@ export function CustomersView({
             } catch (err) {
               toast(err.message || "刪除失敗");
             }
+          }}
+          onRelease={async () => {
+            if (!confirm(`將客戶「${current.name}」轉入客戶公海？`)) return;
+            try {
+              await store.changePool("customers", current.id, "release");
+              setDrawer(null);
+              toast("客戶已轉入公海", "success");
+            } catch (err) { toast(err.message || "轉入失敗"); }
+          }}
+          onClaim={async () => {
+            try {
+              await store.changePool("customers", current.id, "claim");
+              setDrawer(null);
+              toast("已領取客戶", "success");
+            } catch (err) { toast(err.message || "領取失敗"); }
           }}
         />
       )}
@@ -333,6 +356,8 @@ function CustomerDetailDrawer({
   onClose,
   onEdit,
   onDelete,
+  onRelease,
+  onClaim,
 }) {
   const channel = customer.channelId
     ? channels?.find((c) => c.id === customer.channelId)
@@ -344,13 +369,12 @@ function CustomerDetailDrawer({
       onClose={onClose}
       footer={
         <>
-          <button onClick={onDelete} style={s.btnDanger}>
-            刪除
-          </button>
+          {!customer.inPool && customer.owner === store.currentUser && <button onClick={onDelete} style={s.btnDanger}>刪除</button>}
           <div style={{ flex: 1 }} />
-          <button onClick={onEdit} style={s.btn(true)}>
-            編輯
-          </button>
+          {customer.inPool ? <button onClick={onClaim} style={s.btn(true)}>領取客戶</button> : <>
+            {customer.owner === store.currentUser && <button onClick={onRelease} style={s.btn(false)}>轉入公海</button>}
+            {customer.owner === store.currentUser && <button onClick={onEdit} style={s.btn(true)}>編輯</button>}
+          </>}
         </>
       }
     >
@@ -430,6 +454,9 @@ function CustomerDetailDrawer({
         </DetailRow>
         <DetailRow label="地址">{customer.address}</DetailRow>
         <DetailRow label="客戶來源">{customer.source}</DetailRow>
+        <DetailRow label="備註">{customer.notes}</DetailRow>
+        {customer.lastFollowUpNote && <DetailRow label="舊系統最近跟進">{customer.lastFollowUpNote}</DetailRow>}
+        {customer.lastFollowUpAt && <DetailRow label="舊系統實際跟進時間">{customer.lastFollowUpAt}</DetailRow>}
         {channel && (
           <DetailRow label="渠道方">
             <button
@@ -447,8 +474,13 @@ function CustomerDetailDrawer({
 
       <DetailSection title="負責人">
         <DetailRow label="負責人">{getRep(customer.owner)?.name}</DetailRow>
+        {customer.inPool && <>
+          <DetailRow label="前負責人">{getRep(customer.previousOwner)?.name}</DetailRow>
+          <DetailRow label="轉入時間">{fmtHongKongDateTime(customer.poolEnteredAt)}</DetailRow>
+          <DetailRow label="轉入方式">{customer.poolTransferMethod}</DetailRow>
+        </>}
         <DetailRow label="協作人">
-          {customer.collaborators.length
+          {(customer.collaborators || []).length
             ? customer.collaborators.map((id) => getRep(id)?.name).join("、")
             : null}
         </DetailRow>
@@ -458,13 +490,13 @@ function CustomerDetailDrawer({
       </DetailSection>
 
       <DetailSection title="跟進紀錄">
-        <ActivityPanel store={store} relatedType="customer" relatedId={customer.id} />
+        <ActivityPanel store={store} relatedType="customer" relatedId={customer.id} readOnly={!!customer.inPool} />
       </DetailSection>
 
       <DetailSection
         title={`聯系人（${contacts.length}）`}
         action={
-          onCreateContact && (
+          !customer.inPool && onCreateContact && (
             <button
               type="button"
               onClick={onCreateContact}
@@ -516,7 +548,7 @@ function CustomerDetailDrawer({
       <DetailSection
         title={`商機（${deals.length}）`}
         action={
-          onCreateDeal && (
+          !customer.inPool && onCreateDeal && (
             <button
               type="button"
               onClick={onCreateDeal}
@@ -702,6 +734,9 @@ function CustomerFormDrawer({ initial, mode, onClose, onSubmit }) {
             label: r.name,
           }))}
         />
+      </Field>
+      <Field label="備註">
+        <TextArea value={form.notes || ""} onChange={(v) => set("notes", v)} />
       </Field>
     </Drawer>
   );

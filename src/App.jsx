@@ -22,7 +22,9 @@ import { Toaster } from "./components/Toast.jsx";
 const VIEW_TITLES = {
   dashboard: "儀表板",
   leads: "線索",
+  lead_pool: "線索池",
   customers: "客戶",
+  customer_pool: "客戶公海",
   contacts: "聯系人",
   deals: "商機",
   pipeline: "Pipeline",
@@ -170,17 +172,21 @@ export default function App() {
           }}
         >
           {view === "dashboard" && <DashboardView store={store} />}
-          {view === "leads" && (
+          {(view === "leads" || view === "lead_pool") && (
             <LeadsView
+              key={view}
               store={store}
+              poolOnly={view === "lead_pool"}
               drawerSeed={leadSeed}
               onConsumeSeed={() => setLeadSeed(null)}
               onOpenChannel={openChannel}
             />
           )}
-          {view === "customers" && (
+          {(view === "customers" || view === "customer_pool") && (
             <CustomersView
+              key={view}
               store={store}
+              poolOnly={view === "customer_pool"}
               drawerSeed={customerSeed}
               onConsumeSeed={() => setCustomerSeed(null)}
               onOpenContact={openContact}

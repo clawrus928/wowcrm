@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "../components/Toast.jsx";
 import { INDUSTRIES, LEAD_SOURCES, LEAD_STATUSES, REPS } from "../constants.js";
-import { getRep } from "../utils.js";
+import { fmtHongKongDateTime, getRep } from "../utils.js";
 import { s } from "../styles.js";
 import { T } from "../theme.js";
 import { StatusBadge } from "../components/Badge.jsx";
@@ -15,6 +15,7 @@ import {
   MultiSelect,
   SearchSelect,
   SelectInput,
+  TextArea,
   TextInput,
 } from "../components/fields.jsx";
 
@@ -22,13 +23,15 @@ const EMPTY_LEAD = {
   name: "",
   company: "",
   phone: "",
+  landline: "",
+  notes: "",
   status: "未接觸",
   source: "官網",
   owner: null,
   collaborators: [],
 };
 
-export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
+export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel, poolOnly = false }) {
   const { leads, customers, channels, currentUser } = store;
   const [tab, setTab] = useState("all");
   const [fStatus, setFStatus] = useState("all");
@@ -42,14 +45,14 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
   }
 
   const filtered = useMemo(() => {
-    let d = leads;
+    let d = leads.filter((x) => !!x.inPool === poolOnly);
     if (tab === "mine") d = d.filter((x) => x.owner === currentUser);
-    if (tab === "collab") d = d.filter((x) => x.collaborators.includes(currentUser));
+    if (tab === "collab") d = d.filter((x) => (x.collaborators || []).includes(currentUser));
     if (fStatus !== "all") d = d.filter((x) => x.status === fStatus);
     if (fSource !== "all") d = d.filter((x) => x.source === fSource);
-    if (search) d = d.filter((x) => x.name.includes(search) || x.company.includes(search));
+    if (search) d = d.filter((x) => (x.name || "").includes(search) || (x.company || "").includes(search));
     return d;
-  }, [leads, tab, fStatus, fSource, search, currentUser]);
+  }, [leads, poolOnly, tab, fStatus, fSource, search, currentUser]);
 
   const current = drawer?.id ? leads.find((l) => l.id === drawer.id) : null;
 
@@ -72,18 +75,22 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
       label: "負責人",
       render: (r) => getRep(r.owner)?.name || "—",
     },
-    { key: "created", label: "創建時間", mono: true },
+    ...(poolOnly ? [
+      { key: "previousOwner", label: "前負責人", render: (r) => getRep(r.previousOwner)?.name || "—" },
+      { key: "poolEnteredAt", label: "轉入時間", mono: true, render: (r) => fmtHongKongDateTime(r.poolEnteredAt) },
+      { key: "poolTransferMethod", label: "轉入方式" },
+    ] : [{ key: "created", label: "創建時間", mono: true }]),
   ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <PageHeader
-        title="線索"
+        title={poolOnly ? "線索池" : "線索"}
         count={filtered.length}
-        addLabel="新增線索"
-        onAdd={() => setDrawer({ mode: "create" })}
+        addLabel={poolOnly ? undefined : "新增線索"}
+        onAdd={poolOnly ? undefined : () => setDrawer({ mode: "create" })}
       />
-      <OwnerTabs active={tab} onChange={setTab} />
+      {!poolOnly && <OwnerTabs active={tab} onChange={setTab} />}
       <FilterRow>
         <select style={s.select} value={fStatus} onChange={(e) => setFStatus(e.target.value)}>
           <option value="all">跟進狀態：全部</option>
@@ -135,6 +142,21 @@ export function LeadsView({ store, drawerSeed, onConsumeSeed, onOpenChannel }) {
             } catch (err) {
               toast(err.message || "刪除失敗");
             }
+          }}
+          onRelease={async () => {
+            if (!confirm(`將線索「${current.company}」轉入線索池？`)) return;
+            try {
+              await store.changePool("leads", current.id, "release");
+              setDrawer(null);
+              toast("線索已轉入線索池", "success");
+            } catch (err) { toast(err.message || "轉入失敗"); }
+          }}
+          onClaim={async () => {
+            try {
+              await store.changePool("leads", current.id, "claim");
+              setDrawer(null);
+              toast("已領取線索", "success");
+            } catch (err) { toast(err.message || "領取失敗"); }
           }}
         />
       )}
@@ -199,6 +221,8 @@ function LeadDetailDrawer({
   onEdit,
   onConvert,
   onDelete,
+  onRelease,
+  onClaim,
 }) {
   const linkedCustomer = lead.convertedCustomerId
     ? customers.find((c) => c.id === lead.convertedCustomerId)
@@ -206,26 +230,29 @@ function LeadDetailDrawer({
   const channel = lead.channelId
     ? channels?.find((c) => c.id === lead.channelId)
     : null;
-  const canConvert = lead.status !== "已轉客戶" && !lead.convertedCustomerId;
+  const canConvert = !lead.inPool && lead.status !== "已轉客戶" && !lead.convertedCustomerId;
   return (
     <Drawer
       open
-      title={`線索 · ${lead.company}`}
+      title={`線索 · ${lead.company || lead.name}`}
       onClose={onClose}
       footer={
         <>
-          <button onClick={onDelete} style={s.btnDanger}>
-            刪除
-          </button>
+          {!lead.inPool && lead.owner === store.currentUser && <button onClick={onDelete} style={s.btnDanger}>刪除</button>}
           <div style={{ flex: 1 }} />
-          {canConvert && (
-            <button onClick={onConvert} style={s.btn(false)}>
-              轉為客戶
-            </button>
+          {lead.inPool ? <button onClick={onClaim} style={s.btn(true)}>領取線索</button> : (
+            <>
+              {lead.owner === store.currentUser && canConvert && <button onClick={onRelease} style={s.btn(false)}>轉入線索池</button>}
+              {canConvert && lead.owner === store.currentUser && (
+                <button onClick={onConvert} style={s.btn(false)}>
+                  轉為客戶
+                </button>
+              )}
+              {lead.owner === store.currentUser && <button onClick={onEdit} style={s.btn(true)}>
+                編輯
+              </button>}
+            </>
           )}
-          <button onClick={onEdit} style={s.btn(true)}>
-            編輯
-          </button>
         </>
       }
     >
@@ -235,10 +262,14 @@ function LeadDetailDrawer({
         <DetailRow label="手機">
           <span style={{ fontFamily: T.mono }}>{lead.phone}</span>
         </DetailRow>
+        <DetailRow label="座機">{lead.landline}</DetailRow>
         <DetailRow label="跟進狀態">
           <StatusBadge status={lead.status} />
         </DetailRow>
         <DetailRow label="線索來源">{lead.source}</DetailRow>
+        <DetailRow label="備註">{lead.notes}</DetailRow>
+        {lead.lastFollowUpNote && <DetailRow label="舊系統最近跟進">{lead.lastFollowUpNote}</DetailRow>}
+        {lead.lastFollowUpAt && <DetailRow label="舊系統實際跟進時間">{lead.lastFollowUpAt}</DetailRow>}
         {channel && (
           <DetailRow label="渠道方">
             <button
@@ -256,8 +287,13 @@ function LeadDetailDrawer({
 
       <DetailSection title="負責人">
         <DetailRow label="負責人">{getRep(lead.owner)?.name}</DetailRow>
+        {lead.inPool && <>
+          <DetailRow label="前負責人">{getRep(lead.previousOwner)?.name}</DetailRow>
+          <DetailRow label="轉入時間">{fmtHongKongDateTime(lead.poolEnteredAt)}</DetailRow>
+          <DetailRow label="轉入方式">{lead.poolTransferMethod}</DetailRow>
+        </>}
         <DetailRow label="協作人">
-          {lead.collaborators.length
+          {(lead.collaborators || []).length
             ? lead.collaborators.map((id) => getRep(id)?.name).join("、")
             : null}
         </DetailRow>
@@ -267,7 +303,7 @@ function LeadDetailDrawer({
       </DetailSection>
 
       <DetailSection title="跟進紀錄">
-        <ActivityPanel store={store} relatedType="lead" relatedId={lead.id} />
+        <ActivityPanel store={store} relatedType="lead" relatedId={lead.id} readOnly={!!lead.inPool} />
       </DetailSection>
 
       {linkedCustomer && (
@@ -289,7 +325,6 @@ function LeadFormDrawer({ initial, mode, channels, onClose, onSubmit }) {
     const e = {};
     if (!form.company?.trim()) e.company = "請輸入商戶名稱";
     if (!form.name?.trim()) e.name = "請輸入聯絡人姓名";
-    if (!form.phone?.trim()) e.phone = "請輸入手機";
     if (form.source === "渠道方" && !form.channelId)
       e.channelId = "請選擇渠道方";
     setErrors(e);
@@ -329,8 +364,11 @@ function LeadFormDrawer({ initial, mode, channels, onClose, onSubmit }) {
       <Field label="聯絡人" required error={errors.name}>
         <TextInput value={form.name} onChange={(v) => set("name", v)} />
       </Field>
-      <Field label="手機" required error={errors.phone}>
+      <Field label="手機" error={errors.phone}>
         <TextInput value={form.phone} onChange={(v) => set("phone", v)} />
+      </Field>
+      <Field label="座機">
+        <TextInput value={form.landline || ""} onChange={(v) => set("landline", v)} />
       </Field>
       <Field label="跟進狀態">
         <SelectInput
@@ -382,6 +420,9 @@ function LeadFormDrawer({ initial, mode, channels, onClose, onSubmit }) {
             label: r.name,
           }))}
         />
+      </Field>
+      <Field label="備註">
+        <TextArea value={form.notes || ""} onChange={(v) => set("notes", v)} />
       </Field>
     </Drawer>
   );

@@ -77,6 +77,13 @@ export function useCrmStore() {
     else setLoading(false);
   }, [currentUser, refresh]);
 
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [currentUser, refresh]);
+
   // ── Auth ────────────────────────────────────────────
   const login = useCallback(async (userId, password) => {
     try {
@@ -120,6 +127,17 @@ export function useCrmStore() {
     }));
   }, []);
 
+  const changePool = useCallback(async (entity, id, action) => {
+    const updated = action === "claim"
+      ? await api.claimFromPool(entity, id)
+      : await api.releaseToPool(entity, id);
+    setData((prev) => ({
+      ...prev,
+      [entity]: prev[entity].map((item) => item.id === id ? updated : item),
+    }));
+    return updated;
+  }, []);
+
   const moveDealStage = useCallback(async (dealId, stage) => {
     const updated = await api.moveDealStage(dealId, stage);
     setData((prev) => ({
@@ -148,6 +166,7 @@ export function useCrmStore() {
       addItem,
       updateItem,
       removeItem,
+      changePool,
       moveDealStage,
       convertLeadToCustomer,
     }),
@@ -163,6 +182,7 @@ export function useCrmStore() {
       addItem,
       updateItem,
       removeItem,
+      changePool,
       moveDealStage,
       convertLeadToCustomer,
     ]

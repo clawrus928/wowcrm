@@ -126,6 +126,8 @@ export function DashboardView({ store }) {
     };
     const pending = (activities || [])
       .filter((a) => !a.done && a.date)
+      .filter((a) => a.relatedType !== "lead" || !leadById.get(a.relatedId)?.inPool)
+      .filter((a) => a.relatedType !== "customer" || !customerById.get(a.relatedId)?.inPool)
       .map((a) => ({ ...a, relatedName: nameOf(a) || "—" }))
       .sort((x, y) => x.date.localeCompare(y.date));
     return {
@@ -137,6 +139,8 @@ export function DashboardView({ store }) {
   }, [activities, deals, customers, leads]);
 
   const stats = useMemo(() => {
+    const assignedLeads = leads.filter((l) => !l.inPool);
+    const assignedCustomers = customers.filter((c) => !c.inPool);
     // Build indexes once, then look up — avoids O(channels/suppliers × all
     // records × quotes) re-scans that grow with data volume.
     const acc = acceptedQuoteSums(quotes);
@@ -170,11 +174,11 @@ export function DashboardView({ store }) {
       };
     }).sort((a, b) => b.amount - a.amount);
 
-    const newLeadsThisMonth = leads.filter((l) => isThisMonth(l.created)).length;
-    const newCustomersThisMonth = customers.filter((c) => isThisMonth(c.created)).length;
-    const convertedLeads = leads.filter((l) => l.status === "已轉客戶").length;
-    const conversionRate = leads.length
-      ? Math.round((convertedLeads / leads.length) * 100)
+    const newLeadsThisMonth = assignedLeads.filter((l) => isThisMonth(l.created)).length;
+    const newCustomersThisMonth = assignedCustomers.filter((c) => isThisMonth(c.created)).length;
+    const convertedLeads = assignedLeads.filter((l) => l.status === "已轉客戶").length;
+    const conversionRate = assignedLeads.length
+      ? Math.round((convertedLeads / assignedLeads.length) * 100)
       : 0;
 
     const totalPipeline = sumByCurrency(activeDeals, amt, curOf);
@@ -182,8 +186,8 @@ export function DashboardView({ store }) {
 
     const dealsByCustomer = groupBy(deals, (d) => d.customerId);
     const contractsByCustomer = groupBy(contracts || [], (k) => k.customerId);
-    const leadsByChannel = groupBy(leads, (l) => l.channelId);
-    const customersByChannel = groupBy(customers, (c) => c.channelId);
+    const leadsByChannel = groupBy(assignedLeads, (l) => l.channelId);
+    const customersByChannel = groupBy(assignedCustomers, (c) => c.channelId);
 
     const channelSummary = (channels || [])
       .map((ch) => {
@@ -252,6 +256,7 @@ export function DashboardView({ store }) {
       newLeadsThisMonth,
       newCustomersThisMonth,
       convertedLeads,
+      assignedLeadCount: assignedLeads.length,
       conversionRate,
       totalPipeline,
       totalWon,
@@ -315,7 +320,7 @@ export function DashboardView({ store }) {
           <Stat value={stats.newCustomersThisMonth} label="筆" color="#2563EB" />
         </Card>
         <Card title="線索轉化率">
-          <Stat value={`${stats.conversionRate}%`} label={`已轉 ${stats.convertedLeads} / ${leads.length}`} color="#7C3AED" />
+          <Stat value={`${stats.conversionRate}%`} label={`已轉 ${stats.convertedLeads} / ${stats.assignedLeadCount}`} color="#7C3AED" />
         </Card>
         <Card title="合同 / 報價">
           <Stat value={`${contracts.length} / ${quotes.length}`} label="合同 / 報價" />

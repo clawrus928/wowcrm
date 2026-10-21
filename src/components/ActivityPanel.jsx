@@ -17,7 +17,7 @@ const KIND_ICON = {
 
 // 跟進紀錄面板。embed 在 detail drawer 裡,顯示某筆紀錄的活動時間軸,
 // 可記錄「已完成」或「計劃下一步(待辦)」,並標示逾期。
-export function ActivityPanel({ store, relatedType, relatedId }) {
+export function ActivityPanel({ store, relatedType, relatedId, readOnly = false }) {
   const list = (store.activities || [])
     .filter((a) => a.relatedType === relatedType && a.relatedId === relatedId)
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
@@ -52,7 +52,10 @@ export function ActivityPanel({ store, relatedType, relatedId }) {
 
   const toggle = async (a) => {
     try {
-      await store.updateItem("activities", a.id, { done: !a.done });
+      await store.updateItem("activities", a.id, {
+        done: !a.done,
+        completedAt: a.done ? null : new Date().toISOString(),
+      });
     } catch (e) {
       toast(e.message || "更新失敗");
     }
@@ -69,7 +72,7 @@ export function ActivityPanel({ store, relatedType, relatedId }) {
 
   return (
     <div>
-      {!form && (
+      {!readOnly && !form && (
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           <button type="button" onClick={() => startAdd(true)} style={s.btn(false)}>
             ＋ 記錄跟進
@@ -184,16 +187,16 @@ export function ActivityPanel({ store, relatedType, relatedId }) {
               >
                 <span>{getRep(a.owner)?.name || "—"}</span>
                 <div style={{ flex: 1 }} />
-                <button
+                {!readOnly && <button
                   type="button"
                   onClick={() => toggle(a)}
                   style={{ ...linkBtn, color: a.done ? T.textTertiary : "#059669" }}
                 >
                   {a.done ? "標為待辦" : "✓ 完成"}
-                </button>
-                <button type="button" onClick={() => del(a)} style={{ ...linkBtn, color: "#DC2626" }}>
+                </button>}
+                {!readOnly && <button type="button" onClick={() => del(a)} style={{ ...linkBtn, color: "#DC2626" }}>
                   刪除
-                </button>
+                </button>}
               </div>
             </div>
           );

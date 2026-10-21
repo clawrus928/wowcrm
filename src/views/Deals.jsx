@@ -46,6 +46,7 @@ const EMPTY_DEAL = {
   currency: DEFAULT_CURRENCY,
   status: "進行中",
   expectedCloseDate: null,
+  winProbability: null,
   lostReason: "",
   supplierId: null,
   owner: null,
@@ -378,6 +379,7 @@ function DealDetailDrawer({
         <DetailRow label="狀態">
           <StatusBadge status={deal.status} />
         </DetailRow>
+        {deal.winProbability != null && <DetailRow label="簽單可能性">{deal.winProbability}%</DetailRow>}
         {deal.status === "進行中" && deal.expectedCloseDate && (
           <DetailRow label="預計成交日">
             <span style={{ fontFamily: T.mono }}>{deal.expectedCloseDate}</span>
@@ -543,6 +545,8 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
     if (form.amount != null && form.amount !== "" && form.amount < 0)
       e.amount = "金額不可為負數";
     if (!stages.includes(form.stage)) e.stage = "請選擇階段";
+    if (form.winProbability != null && (form.winProbability < 0 || form.winProbability > 100))
+      e.winProbability = "請輸入 0 至 100";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -617,6 +621,9 @@ export function DealFormDrawer({ initial, mode, customers, suppliers, onClose, o
           onChange={(v) => set("status", v)}
           options={DEAL_STATUSES}
         />
+      </Field>
+      <Field label="簽單可能性（%）" hint="可選，沿用舊系統的預測數值" error={errors.winProbability}>
+        <NumberInput value={form.winProbability} onChange={(v) => set("winProbability", v)} />
       </Field>
       {form.status === "進行中" && (
         <Field label="預計成交日" hint="可選,用來追蹤進度與逾期">
