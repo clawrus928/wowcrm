@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { mapLegacyOwners } from "./legacy-owners.js";
 
 export const SEED_USERS = [
   { id: "u1", name: "Alan Leong" },
@@ -43,7 +44,8 @@ export function migrate(db, defaultPassword) {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      password_hash TEXT NOT NULL
+      password_hash TEXT NOT NULL,
+      login_enabled INTEGER NOT NULL DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS records (
@@ -69,7 +71,17 @@ export function migrate(db, defaultPassword) {
     CREATE INDEX IF NOT EXISTS idx_records_owner ON records(owner);
     CREATE INDEX IF NOT EXISTS idx_audit_record ON audit(entity, record_id);
     CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit(ts);
+
+    CREATE TABLE IF NOT EXISTS legacy_owner_mappings (
+      legacy_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
+      created_at TEXT NOT NULL
+    );
   `);
+
+  if (!db.pragma("table_info(users)").some(column => column.name === "login_enabled")) {
+    db.exec("ALTER TABLE users ADD COLUMN login_enabled INTEGER NOT NULL DEFAULT 1");
+  }
 
   // Seed users on first run
   const userCount = db.prepare("SELECT COUNT(*) as n FROM users").get().n;
@@ -83,6 +95,7 @@ export function migrate(db, defaultPassword) {
     });
     tx();
   }
+  mapLegacyOwners(db);
 }
 
 export function listEntity(db, entity) {
@@ -166,12 +179,12 @@ export function nextDocSeq(db, entity, prefix) {
 }
 
 export function listUsers(db) {
-  return db.prepare("SELECT id, name FROM users").all();
+  return db.prepare("SELECT id, name FROM users WHERE login_enabled = 1").all();
 }
 
 export function findUser(db, id) {
   return db
-    .prepare("SELECT id, name, password_hash FROM users WHERE id = ?")
+    .prepare("SELECT id, name, password_hash FROM users WHERE id = ? AND login_enabled = 1")
     .get(id);
 }
 

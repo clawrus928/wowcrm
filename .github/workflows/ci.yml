@@ -34,6 +34,7 @@ jobs:
           node --check server/src/index.js
           node --check server/src/db.js
           node --check server/src/validate.js
+          node --test server/src/legacy-owners.test.js
           bash -n scripts/ssh-deploy.sh
           python3 -m unittest discover -s tests -v
       - name: Exercise API with an isolated temporary SQLite database

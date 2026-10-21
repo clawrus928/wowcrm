@@ -116,7 +116,7 @@ export function LoginView({ onLogin }) {
               fontSize: 14,
             }}
           >
-            {REPS.map((r) => (
+            {REPS.filter((r) => !r.placeholder).map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
               </option>
