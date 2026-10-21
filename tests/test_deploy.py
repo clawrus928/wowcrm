@@ -182,13 +182,17 @@ class DeploymentTests(unittest.TestCase):
 
     def test_ssh_entry_rejects_wrong_host_and_branch_before_connecting(self):
         script = Path(__file__).resolve().parents[1] / 'scripts/ssh-deploy.sh'
-        for host, ref in [('192.0.2.1', 'refs/heads/master'), ('43.160.242.177', 'refs/heads/feature')]:
+        for host, ref, message in [
+            ('192.0.2.1', 'refs/heads/master', 'EC2_HOST does not match the approved host'),
+            ('43.160.242.177', 'refs/heads/feature', 'Deploy requires master'),
+        ]:
             with self.subTest(host=host, ref=ref):
                 result = subprocess.run(['bash', str(script)], capture_output=True, text=True,
                                         env={**os.environ, 'EC2_HOST': host, 'GITHUB_REF': ref}, timeout=5)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, '')
-                self.assertEqual(result.stderr, '')
+                self.assertIn(message, result.stderr)
+                self.assertNotIn(host, result.stderr)
 
 
 if __name__ == '__main__':
